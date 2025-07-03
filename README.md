@@ -43,12 +43,7 @@ A Node.js bot for automating tasks on the Pharos Testnet, including faucet claim
 
     * `proxy.txt`
         > One proxy per line in `http://user:pass@host:port` format. The order must match `YourPrivateKey.txt`. Leave a line empty if an account does not use a proxy.
-        ```
-        [http://user1:pass1@proxy1.com:8080](http://user1:pass1@proxy1.com:8080)
         
-        [http://user3:pass3@proxy3.com:8080](http://user3:pass3@proxy3.com:8080)
-        ```
-
     * `wallets.txt`
         > One recipient wallet address per line. Used for the Auto-Send feature.
         ```
