@@ -22,8 +22,8 @@ A Node.js bot for automating tasks on the Pharos Testnet, including faucet claim
 
 1.  **Clone the Repository**
     ```bash
-    git clone [YOUR_GITHUB_REPOSITORY_URL]
-    cd [PROJECT_FOLDER_NAME]
+    git clone https://github.com/anggafajarsidik/OFFpharos
+    cd OFFpharos
     ```
 
 2.  **Install Dependencies**
