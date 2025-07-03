@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import AbortController from 'abort-controller';
 import { ethers } from 'ethers';
 import { HttpsProxyAgent } from 'https-proxy-agent';
-import { buildFallbackProvider, ERC20_ABI as BaseERC20_ABI } from './autoswapservice.js';
+import { buildFallbackProvider, ERC20_ABI as BaseERC20_ABI } from './providerservice.js';
 import UserAgent from 'user-agents';
 import dotenv from 'dotenv';
 import readline from 'readline';
