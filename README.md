@@ -35,7 +35,7 @@ A Node.js bot for automating tasks on the Pharos Testnet, including faucet claim
     Create the following `.txt` files in the main project folder:
 
     * `YourPrivateKey.txt`
-        > One private key per line.
+        > One private key per line, using 0x first
         ```
         0xabcde...
         0x12345...
