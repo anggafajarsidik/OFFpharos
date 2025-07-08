@@ -8,7 +8,7 @@ A Node.js bot for automating tasks on the Pharos Testnet, including faucet claim
 * **Daily Check-in**
 * **Auto-Send** to multiple wallets
 * **Swapping** on FaroSwap & ZenithSwap
-* **Add Liquidity** on ZenithSwap
+* **Add Liquidity** on FaroSwap &  ZenithSwap
 * **Advanced Error Handling** (Retries for RPCs & Transactions)
 * **Proxy Support** (Per-account basis)
 * **Automatic Gas Fee Bumping** for higher transaction priority
