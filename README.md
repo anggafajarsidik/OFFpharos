@@ -132,15 +132,15 @@ If you have only one wallet in your `YourPrivateKey.txt`, your `pools.json` file
     ```
 2.  **Follow the interactive prompts** to configure the tasks for your session.
 
-## Configuration
+## ⚙️ Configuration
 
-You can modify the following constants at the top of main.js to customize behavior:
+You can customize the script behavior by editing the constants at the top of `main.js`:
 
-GAS_FEE_MULTIPLIER: Controls how aggressively the gas fee is increased. The default is 2.5, which means it will use 150% more than the network’s suggested fee for faster transactions.
-
-DAILY_RUN_INTERVAL_HOURS: Sets how often the script will run automatically. The default is 24, meaning it will execute once every 24 hours.
-
-MINIMUM_LP_TOP_UP_SWAP: Defines the minimum amount (in ETH or native token) to trigger a liquidity top-up via swap. Default is "0.001".
+| Constant                    | Description |
+|----------------------------|-------------|
+| `GAS_FEE_MULTIPLIER`       | Controls how aggressively the gas fee is increased. <br>Default is `2.5`, meaning it uses **150% more** than the network’s suggested fee for faster transactions. |
+| `DAILY_RUN_INTERVAL_HOURS` | Sets how often the script runs automatically. <br>Default is `24`, so it runs **once every 24 hours**. |
+| `MINIMUM_LP_TOP_UP_SWAP`   | Defines the minimum amount (in ETH or native token) to trigger a **liquidity top-up via swap**. <br>Default is `"0.001"`. |
 
 ## ⚠️ Disclaimer
 
