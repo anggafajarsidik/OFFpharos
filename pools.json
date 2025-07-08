@@ -1,0 +1,10 @@
+[
+  {
+    "USDC_USDT": "0xPairUSDC/USDTwallet1",
+    "USDT_USDC": "0xPairUSDT/USDCwallet1"
+  },
+  {
+    "USDC_USDT": "0xPairUSDC/USDTwallet2",
+    "USDT_USDC": "0xPairUSDT/USDCwallet2"
+  }
+]
