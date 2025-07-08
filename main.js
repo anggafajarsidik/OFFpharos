@@ -440,9 +440,6 @@ class AccountProcessor {
     }
 
     async #approveForLP(tokenAddress, spender, amount, tokenSymbolForLog, dexName) {
-        // =========================================================================================
-        // === PERBAIKAN DI SINI: Menggunakan `BaseERC20_ABI` agar kompatibel untuk semua DEX ===
-        // =========================================================================================
         const tokenContract = new ethers.Contract(tokenAddress, BaseERC20_ABI, this.wallet);
         
         let allowance = 0n;
@@ -565,11 +562,9 @@ class AccountProcessor {
     const baseTokenAddress = DEX_CONFIGS.FAROSWAP.TOKENS[baseToken];
     const quoteTokenAddress = DEX_CONFIGS.FAROSWAP.TOKENS[quoteToken];
 
-    // [LOGIKA BARU]: Membuat kunci spesifik berdasarkan pilihan pengguna.
     const pairKey = `${baseToken}_${quoteToken}`;
     const dvmPairAddress = faroPools[pairKey];
 
-    // Pengecekan langsung ke alamat yang dipilih.
     if (!dvmPairAddress) {
         log('LIQUIDITY', `[Faroswap] Pool address for the specific pair "${pairKey}" not found in your pools.json. Skipping.`, Colors.FgRed, '❌');
         return;
@@ -583,7 +578,6 @@ class AccountProcessor {
             const baseAmountInWei = ethers.parseUnits(baseAmount.toString(), baseDecimals);
             const quoteAmountInWei = ethers.parseUnits(quoteAmount.toString(), quoteDecimals);
 
-            // Pengecekan saldo (logika ini sudah benar dari sebelumnya)
             const baseTokenContract = new ethers.Contract(baseTokenAddress, BaseERC20_ABI, this.provider);
             const currentBaseBalance = await baseTokenContract.balanceOf(this.address);
             if (currentBaseBalance < baseAmountInWei) {
@@ -596,7 +590,6 @@ class AccountProcessor {
                 throw new Error(`Insufficient ${quoteToken} balance. Have: ${ethers.formatUnits(currentQuoteBalance, quoteDecimals)}, Need: ${ethers.formatUnits(quoteAmountInWei, quoteDecimals)}`);
             }
 
-            // Memberikan izin ke Router
             await this.#approveForLP(baseTokenAddress, DVM_ROUTER_ADDRESS, baseAmountInWei, baseToken, 'Faro');
             await this.#approveForLP(quoteTokenAddress, DVM_ROUTER_ADDRESS, quoteAmountInWei, quoteToken, 'Faro');
 
