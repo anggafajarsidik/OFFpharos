@@ -55,6 +55,74 @@ A Node.js bot for automating tasks on the Pharos Testnet, including faucet claim
         0x...
         0x...
         ```
+# How to Configure `pools.json` for Faroswap Liquidity
+
+The `pools.json` file is crucial for the "Add Liquidity" feature on Faroswap. It tells the script the exact smart contract address of the specific liquidity pool you want to add funds to. Each pool you create on the Faroswap platform has its own unique address.
+
+This guide will show you how to find your pool addresses and format the `pools.json` file correctly.
+
+### **Step 1: Create Your Pool on the Faroswap Website**
+
+The script adds liquidity to **pools that you have already created**. It does not create new pools for you.
+
+1.  Go to the official Faroswap website and connect your wallet.
+2.  Navigate to the **Liquidity** or **Pools** section.
+3.  Click on **"Create Pool"**.
+4.  Select the pair of tokens you want to provide liquidity for (e.g., `USDC` and `USDT`).
+5.  Follow the prompts to create your new liquidity pool.
+
+**Important**: A `USDC/USDT` pool is a separate contract from a `USDT/USDC` pool. If you want the script to be able to add to both, you must create both on the website.
+
+### **Step 2: Find Your Pool's Contract Address**
+
+Once your pool(s) are created, you need to get their contract addresses.
+
+1.  On the Faroswap website, go to the **"My Pools (PMM)"** tab.
+2.  You will see a list of all the liquidity pools associated with your wallet.
+3.  Each pool will have its unique address displayed, which is a long string starting with `0x...`.
+4.  **Copy** this address. This is the value you will use in `pools.json`.
+
+### **Step 3: Edit the `pools.json` File**
+
+Now, open the `pools.json` file in your text editor and format it according to the examples below.
+
+**Key Rules:**
+* The file must be a valid JSON **array** `[ ... ]` containing one or more **objects** `{ ... }`.
+* Each object `{}` represents **one wallet**.
+* The order of the objects **must exactly match the order** of your private keys in `YourPrivateKey.txt`. The first object is for the first key, the second object for the second key, and so on.
+* Inside an object, the "key" must exactly match the pair name you select in the script (e.g., `"USDC_USDT"` or `"USDT_USDC"`).
+* The "value" is the pool contract address you copied from the Faroswap website in Step 2.
+
+---
+
+### **Formatting Examples**
+
+#### **Example 1: Single Wallet**
+
+If you have only one wallet in your `YourPrivateKey.txt`, your `pools.json` file should look like this. This example assumes you have created two separate pools for both `USDC/USDT` and `USDT/USDC`.
+
+```json
+[
+  {
+    "USDC_USDT": "0x5fc08688a4b55d93c47e0799b7374237eb6e126d",
+    "USDT_USDC": "0x14cfe4aa683184598dad22ef1723133209f5795c"
+  }
+]
+```
+
+#### **Example 2: Multiple Wallets**
+```json
+[
+  {
+    "USDC_USDT": "0xPairUSDC/USDTwallet1",
+    "USDT_USDC": "0xPairUSDT/USDCwallet1"
+  },
+  {
+    "USDC_USDT": "0xPairUSDC/USDTwallet2",
+    "USDT_USDC": "0xPairUSDT/USDCwallet2"
+  }
+]
+```
 
 ## Usage
 
