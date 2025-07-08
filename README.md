@@ -134,8 +134,13 @@ If you have only one wallet in your `YourPrivateKey.txt`, your `pools.json` file
 
 ## Configuration
 
-You can edit the following constant at the top of `main.js`:
-* `GAS_FEE_MULTIPLIER`: Controls how aggressively the gas fee is increased. The default is `2.5` (150% higher than the network's recommendation) for faster transactions.
+You can modify the following constants at the top of main.js to customize behavior:
+
+GAS_FEE_MULTIPLIER: Controls how aggressively the gas fee is increased. The default is 2.5, which means it will use 150% more than the network’s suggested fee for faster transactions.
+
+DAILY_RUN_INTERVAL_HOURS: Sets how often the script will run automatically. The default is 24, meaning it will execute once every 24 hours.
+
+MINIMUM_LP_TOP_UP_SWAP: Defines the minimum amount (in ETH or native token) to trigger a liquidity top-up via swap. Default is "0.001".
 
 ## ⚠️ Disclaimer
 
