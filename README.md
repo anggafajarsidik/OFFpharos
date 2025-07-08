@@ -104,8 +104,8 @@ If you have only one wallet in your `YourPrivateKey.txt`, your `pools.json` file
 ```json
 [
   {
-    "USDC_USDT": "0x5fc08688a4b55d93c47e0799b7374237eb6e126d",
-    "USDT_USDC": "0x14cfe4aa683184598dad22ef1723133209f5795c"
+    "USDC_USDT": "0xPairUSDC/USDTwallet1",
+    "USDT_USDC": "0xPairUSDT/USDCwallet1"
   }
 ]
 ```
