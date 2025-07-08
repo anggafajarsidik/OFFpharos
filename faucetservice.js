@@ -2,20 +2,19 @@ import fs from "fs";
 import path from "path";
 import axios from "axios";
 import { HttpsProxyAgent } from "https-proxy-agent";
-import { ethers } from "ethers"; // Corrected import
+import { ethers } from "ethers";
 import { jwtDecode } from "jwt-decode";
 import AsyncLock from "async-lock";
-// readline is not directly used here, removed import as it's passed from main.js
 
 const lock = new AsyncLock();
 
-function _isArray(obj) { // Not used in FaucetClient logic, can be removed
+function _isArray(obj) { 
   return Array.isArray(obj) && obj.length > 0;
 }
 
 const faucetInternalSettings = {
   BASE_URL: "https://api.pharosnetwork.xyz",
-  DELAY_BETWEEN_REQUESTS: [3, 20], // Delays for requests within FaucetClient
+  DELAY_BETWEEN_REQUESTS: [3, 20],
 };
 
 async function sleep(seconds = null) {
@@ -24,8 +23,8 @@ async function sleep(seconds = null) {
   let min = faucetInternalSettings.DELAY_BETWEEN_REQUESTS[0];
   let max = faucetInternalSettings.DELAY_BETWEEN_REQUESTS[1];
   if (seconds && Array.isArray(seconds)) {
-    min = seconds[0]; // If sleep(5) is called, seconds is a number.
-    max = seconds[1]; // So these will be undefined.
+    min = seconds[0];
+    max = seconds[1];
   }
     min = min || faucetInternalSettings.DELAY_BETWEEN_REQUESTS[0];
     max = max || faucetInternalSettings.DELAY_BETWEEN_REQUESTS[1];
@@ -51,7 +50,7 @@ function isTokenExpired(token) {
   }
 }
 
-function getRandomElement(arr) { // Not used in FaucetClient logic, can be removed
+function getRandomElement(arr) {
   const randomIndex = Math.floor(Math.random() * arr.length);
   return arr[randomIndex];
 }
@@ -97,7 +96,7 @@ export class FaucetClient {
     this.baseURL = baseURL;
     this.accountIndex = accountIndex;
     this.proxy = proxy;
-    this.log = logFunction; // Use the log function from main.js
+    this.log = logFunction;
     this.session_name = accountData.address;
     this.token = null;
     this.localStorage = {};
@@ -170,9 +169,9 @@ export class FaucetClient {
         const errorStatus = error?.response?.status || 0;
         this.log(`Request failed (${currRetries + 1}/${retries + 1}): ${url} | ${JSON.stringify(errorMessage)}`, "warning");
 
-        if (errorStatus === 401 && !isAuth) { // Only try refreshing token if it's not an initial auth request
+        if (errorStatus === 401 && !isAuth) {
           this.log(`Token invalid or expired, trying to get a new token...`, "warning");
-          const newToken = await this.getValidToken(true); // Force a new token
+          const newToken = await this.getValidToken(true);
           if (newToken) {
             this.token = newToken;
             return this.makeRequest(url, method, data, options); 
@@ -230,7 +229,7 @@ export class FaucetClient {
     this.log(`Access token status: ${isExp ? "Expired" : "Valid"} | Access token exp: ${expirationDate}`, isExp ? "warning" : "success");
     if (existingToken && !isNew && !isExp) {
       this.log("Using valid token", "success");
-      this.token = existingToken; // Ensure this.token is set when using existing valid token
+      this.token = existingToken;
       return existingToken;
     }
 
