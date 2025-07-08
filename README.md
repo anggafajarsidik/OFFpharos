@@ -69,7 +69,7 @@ The script adds liquidity to **pools that you have already created**. It does no
 2.  Navigate to the **Liquidity** or **Pools** section.
 3.  Click on **"Create Pool"**.
 4.  Select the pair of tokens you want to provide liquidity for (e.g., `USDC` and `USDT`).
-5.  Follow the prompts to create your new liquidity pool.
+5.  Follow the prompts to create your new liquidity pool.  Ensure the amount is above the pool's minimum requirement (e.g., 0.01).
 
 **Important**: A `USDC/USDT` pool is a separate contract from a `USDT/USDC` pool. If you want the script to be able to add to both, you must create both on the website.
 
