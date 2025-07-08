@@ -1,4 +1,3 @@
-// checkinservice.js
 import fetch from 'node-fetch';
 
 export class CheckinClient {
