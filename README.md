@@ -56,7 +56,7 @@ This bot is packed with features to automate a wide range of activities across t
 1.  **Clone the Repository**
     Open your terminal and run the following commands:
     ```bash
-    git clone [https://github.com/anggafajarsidik/OFFpharos](https://github.com/anggafajarsidik/OFFpharos)
+    git clone [https://github.com/anggafajarsidik/OFFpharos]
     cd OFFpharos
     ```
 
