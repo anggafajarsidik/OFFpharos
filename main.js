@@ -202,12 +202,12 @@ class AccountProcessor {
         } catch(e) {
             log('GAS', `Could not get custom fee data. Using default. (${e.message})`, Colors.FgYellow, '⚠️');
         }
-
-        const receipt = await executeTransaction(this.wallet, txRequest, description);
-        if (receipt) {
+        
+        try {
+            return await executeTransaction(this.wallet, txRequest, description);
+        } finally {
             this.nonce++;
         }
-        return receipt;
     }
 
     async #api_request({ endpoint, method = 'post' }) { const userAgent = new UserAgent(); const options = { method: method, headers: { 'User-Agent': userAgent.toString(), 'Referer': 'https://testnet.pharosnetwork.xyz/', 'Origin': 'https://testnet.pharosnetwork.xyz' }, agent: this.proxyAgent, }; if (this.authToken) { options.headers['Authorization'] = `Bearer ${this.authToken}`; } try { const response = await fetch(`${API_BASE_URL}${endpoint}`, options); if (!response.ok) { return null; } return response.json(); } catch (e) { return null; } }
@@ -578,6 +578,7 @@ class AccountProcessor {
             const baseAmountInWei = ethers.parseUnits(baseAmount.toString(), baseDecimals);
             const quoteAmountInWei = ethers.parseUnits(quoteAmount.toString(), quoteDecimals);
 
+            // Pengecekan saldo (logika ini sudah benar dari sebelumnya)
             const baseTokenContract = new ethers.Contract(baseTokenAddress, BaseERC20_ABI, this.provider);
             const currentBaseBalance = await baseTokenContract.balanceOf(this.address);
             if (currentBaseBalance < baseAmountInWei) {
@@ -590,6 +591,7 @@ class AccountProcessor {
                 throw new Error(`Insufficient ${quoteToken} balance. Have: ${ethers.formatUnits(currentQuoteBalance, quoteDecimals)}, Need: ${ethers.formatUnits(quoteAmountInWei, quoteDecimals)}`);
             }
 
+            // Memberikan izin ke Router
             await this.#approveForLP(baseTokenAddress, DVM_ROUTER_ADDRESS, baseAmountInWei, baseToken, 'Faro');
             await this.#approveForLP(quoteTokenAddress, DVM_ROUTER_ADDRESS, quoteAmountInWei, quoteToken, 'Faro');
 
