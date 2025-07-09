@@ -156,5 +156,3 @@ You can fine-tune the script's behavior by editing the constants at the top of `
 * This script is provided "as-is" for educational purposes only. The author and contributors are not responsible for any damages, losses, or legal issues arising from its use.
 * **Use at your own risk.** You are solely responsible for your actions and any potential loss of funds.
 * **NEVER SHARE YOUR PRIVATE KEYS.** Keep your `YourPrivateKey.txt` file secure and do not commit it to any public repository.
-
-```
