@@ -1,5 +1,5 @@
 {
-  "name": "offfaroswap",
+  "name": "offpharos",
   "version": "1.0.0",
   "description": "Auto-swap script for Pharos chain with multiple account and proxy support",
   "main": "main.js",
