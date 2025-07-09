@@ -7,13 +7,14 @@ import UserAgent from 'user-agents';
 import dotenv from 'dotenv';
 import readline from 'readline';
 import fs from 'fs';
+import fsp from 'fs/promises';
 import process from 'process';
 import { FaucetClient } from './faucetservice.js';
 import { CheckinClient } from './checkinservice.js';
 
 dotenv.config();
 
-const GAS_FEE_MULTIPLIER = 2.5;
+const GAS_FEE_MULTIPLIER = 3;
 const DAILY_RUN_INTERVAL_HOURS = 24;
 const MINIMUM_LP_TOP_UP_SWAP = "0.001";
 const APPROX_PRICES_IN_PHRS = {
@@ -74,6 +75,41 @@ const PHAROS_EXPLORER_URL = 'https://pharos-testnet.socialscan.io/tx/';
 const API_BASE_URL = "https://api.pharosnetwork.xyz";
 const WPHRS_ABI_FARO = [{"inputs":[],"name":"deposit","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"uint256","name":"wad","type":"uint256"}],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"}];
 
+const OPENFI_CONFIGS = {
+    MINT_ROUTER_ADDRESS: "0x2E9D89D372837F71Cb529e5BA85bFbC1785C69Cd",
+    DEPOSIT_ROUTER_ADDRESS: "0xa8E550710Bf113DB6A1B38472118b8d6d5176D12",
+    SUPPLY_ROUTER_ADDRESS: "0xAd3B4E20412A097F87CD8e8d84FbBe17ac7C89e9",
+    ASSETS: {
+        USDT: { address: "0x0B00Fb1F513E02399667FBA50772B21f34c1b5D9", decimals: 6 },
+        USDC: { address: "0x48249feEb47a8453023f702f15CF00206eeBdF08", decimals: 6 },
+        WPHRS: { address: "0x253F3534e1e36B9E4a1b9A6F7b6dE47AC3e7AaD3", decimals: 18 },
+        GOLD: { address: "0x77f532df5f46DdFf1c97CDae3115271A523fa0f4", decimals: 18 },
+        TSLA: { address: "0xCDA3DF4AAB8a571688fE493EB1BdC1Ad210C09E4", decimals: 18 },
+        BTC: { address: "0xA4a967FC7cF0E9815bF5c2700A055813628b65BE", decimals: 18 },
+        NVIDIA: { address: "0x3299cc551B2a39926Bf14144e65630e533dF6944", decimals: 18 },
+    },
+    MINT_ABI: [{"type":"function","name":"mint","inputs":[{"internalType":"address","name":"_asset","type":"address"},{"internalType":"address","name":"_account","type":"address"},{"internalType":"uint256","name":"_amount","type":"uint256"}],"outputs":[],"stateMutability":"nonpayable"}],
+    LENDING_ABI: [{"type":"function","name":"depositETH","inputs":[{"name":"lendingPool","type":"address"},{"name":"onBehalfOf","type":"address"},{"name":"referralCode","type":"uint16"}],"outputs":[],"stateMutability":"payable"},{"type":"function","name":"supply","inputs":[{"name":"asset","type":"address"},{"name":"amount","type":"uint256"},{"name":"onBehalfOf","type":"address"},{"name":"referralCode","type":"uint16"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"borrow","inputs":[{"name":"asset","type":"address"},{"name":"amount","type":"uint256"},{"name":"interestRateMode","type":"uint256"},{"name":"referralCode","type":"uint16"},{"name":"onBehalfOf","type":"address"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"withdraw","inputs":[{"name":"asset","type":"address"},{"name":"amount","type":"uint256"},{"name":"to","type":"address"}],"outputs":[],"stateMutability":"nonpayable"}]
+};
+const BROKEX_CONFIGS = {
+    USDT_ADDRESS: "0x78ac5e2d8a78a8b8e6d10c7b7274b03c10c91cef",
+    CLAIM_ROUTER_ADDRESS: "0x50576285BD33261DEe1aD99BF766CD8249520a58",
+    TRADE_ROUTER_ADDRESS: "0xf2532bE557F6de4a28a7C706139cb200B1888081",
+    CLAIM_ABI: [{"type":"function","name":"claim","stateMutability":"nonpayable","inputs":[],"outputs":[]}],
+    PAIRS: [{ name: "BTC_USDT", id: 0 },{ name: "ETH_USDT", id: 1 },{ name: "SOL_USDT", id: 10 },{ name: "XRP_USDT", id: 14 }]
+};
+const ZENTRAFI_CONFIGS = {
+    WPHRS_ADDRESS: "0x76aaaDA469D23216bE5f7C596fA25F282Ff9b364",
+    USDC_ADDRESS: "0x72df0bcd7276f2dFbAc900D1CE63c272C4BCcCED",
+    USDT_ADDRESS: "0xD4071393f8716661958F766DF660033b3d35fD29",
+    SWAP_ROUTER_ADDRESS: "0xbc3813206c3cb99347c96a18a757ed39386d12b8",
+    POSITION_MANAGER_ADDRESS: "0x7ec504ae0771ec2aa1900f117e609868d0650043",
+    WPHRS_ABI: [{"type":"function","name":"withdraw","stateMutability":"nonpayable","inputs":[{"name":"wad","type":"uint256"}],"outputs":[]}],
+};
+const GOTCHIPUS_CONFIGS = {
+    CONTRACT_ADDRESS: "0x0000000038f050528452d6da1e7aacfa7b3ec0a8",
+    MINT_FUNCTION_SELECTOR: "0x5b70ea9f"
+};
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const Colors = { Reset: "\x1b[0m", Bright: "\x1b[1m", FgRed: "\x1b[31m", FgGreen: "\x1b[32m", FgYellow: "\x1b[33m", FgBlue: "\x1b[34m", FgMagenta: "\x1b[35m", FgCyan: "\x1b[36m", FgDim: "\x1b[2m"};
 function log(prefix, message, color = Colors.Reset, symbol = '➡️') { const timestamp = new Date().toLocaleTimeString(); console.log(`${color}${symbol} [${timestamp}] ${prefix}: ${message}${Colors.Reset}`); }
@@ -128,11 +164,10 @@ async function executeTransaction(wallet, txRequest, description) {
             log('TX', `${description} TX sent: ${txResponse.hash}`, Colors.FgYellow, '🚀');
             break; 
         } catch (e) {
-            if (e.message.includes('TX_REPLAY_ATTACK')) {
-                log('TX', `TX_REPLAY_ATTACK detected for ${description}. The transaction was likely already sent. Failing this attempt and moving on.`, Colors.FgYellow, '⚠️');
-                throw new Error(`Replay attack detected for ${description}.`);
+            if (e.code === 'CALL_EXCEPTION' || e.message.includes('execution reverted')) {
+                log('TX', `Transaction reverted on send for ${description}. No point in retrying.`, Colors.FgRed, '❌');
+                throw e;
             }
-
             log('TX', `Failed to SEND ${description} on attempt ${i + 1}: ${e.message}`, Colors.FgRed, '❌');
             if (i === sendMaxRetries - 1) {
                 log('TX', `Max retries reached for SENDING ${description}. Giving up.`, Colors.FgRed, '🛑');
@@ -145,12 +180,12 @@ async function executeTransaction(wallet, txRequest, description) {
         throw new Error(`Transaction response was not received for ${description}.`);
     }
 
-    const waitMaxRetries = 8;
-    const waitTimeout = 90000;
+    const waitMaxRetries = 3;
+    const waitTimeout = 30000;
     for (let i = 0; i < waitMaxRetries; i++) {
         try {
             if (i > 0) {
-                 const delay = 15000;
+                 const delay = 3000;
                 log('TX-WAIT', `Retrying to GET RECEIPT for ${txResponse.hash}... (Attempt ${i + 1}/${waitMaxRetries}, delay ${delay/1000}s)`, Colors.FgYellow, '⏳');
                 await new Promise(r => setTimeout(r, delay));
             }
@@ -165,6 +200,11 @@ async function executeTransaction(wallet, txRequest, description) {
                 throw new Error('wait() returned null receipt.');
             }
         } catch(e) {
+            if (e.code === 'CALL_EXCEPTION' || (e.receipt && e.receipt.status === 0)) {
+                log('TX-WAIT', `Transaction ${txResponse.hash} has failed on-chain (reverted). Stopping wait.`, Colors.FgRed, '❌');
+                throw new Error(`Transaction reverted: ${e.message}`);
+            }
+            
             log('TX-WAIT', `Failed to GET RECEIPT for ${txResponse.hash} on attempt ${i + 1}: ${e.message}`, Colors.FgYellow, '⚠️');
             if (i === waitMaxRetries - 1) {
                  log('TX-WAIT', `Max retries reached for GETTING RECEIPT for ${txResponse.hash}. The transaction may still succeed on-chain.`, Colors.FgRed, '🛑');
@@ -185,11 +225,13 @@ class AccountProcessor {
         this.address = this.wallet.address;
         this.operationParams = operationParams;
         this.authToken = null;
-        this.nonce = 0;
     }
 
     async #executeTx(txData, description) {
-        const txRequest = { ...txData, nonce: this.nonce };
+        const txRequest = { ...txData };
+        const nonce = await this.provider.getTransactionCount(this.address, 'latest');
+        txRequest.nonce = nonce;
+
         try {
             const feeData = await this.provider.getFeeData();
             if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
@@ -203,11 +245,7 @@ class AccountProcessor {
             log('GAS', `Could not get custom fee data. Using default. (${e.message})`, Colors.FgYellow, '⚠️');
         }
         
-        try {
-            return await executeTransaction(this.wallet, txRequest, description);
-        } finally {
-            this.nonce++;
-        }
+        return executeTransaction(this.wallet, txRequest, description);
     }
 
     async #api_request({ endpoint, method = 'post' }) { const userAgent = new UserAgent(); const options = { method: method, headers: { 'User-Agent': userAgent.toString(), 'Referer': 'https://testnet.pharosnetwork.xyz/', 'Origin': 'https://testnet.pharosnetwork.xyz' }, agent: this.proxyAgent, }; if (this.authToken) { options.headers['Authorization'] = `Bearer ${this.authToken}`; } try { const response = await fetch(`${API_BASE_URL}${endpoint}`, options); if (!response.ok) { return null; } return response.json(); } catch (e) { return null; } }
@@ -381,7 +419,7 @@ class AccountProcessor {
                     await this.#executeTx(txRequest, `Swap ${amount} ${fromToken} to ${toToken} (Faro)`);
                 }
                 log('SWAP', `[Faroswap] Swap #${i + 1} completed.`, Colors.FgGreen, '✅');
-            } catch (e) { log('SWAP', `[Faroswap] Swap #${i + 1} failed: ${e.message}`, Colors.FgRed, '❌'); }
+            } catch (e) { log('SWAP', `[Faroswap] Swap #${i + 1} failed: ${e.message.split('(')[0]}`, Colors.FgRed, '❌'); }
             if (i < count - 1) {
                 const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
                 log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳'); await new Promise(r => setTimeout(r, randomDelay));
@@ -431,7 +469,7 @@ class AccountProcessor {
                 const txData = await swapRouterContract.exactInputSingle.populateTransaction(txParams);
                 await this.#executeTx(txData, `Swap ${amount} ${fromToken === 'PHRS' ? 'WPHRS' : fromToken} to ${toToken} (Zenith)`);
                 log('SWAP', `[Zenithswap] Swap #${i + 1} completed.`, Colors.FgGreen, '✅');
-            } catch (e) { log('SWAP', `[Zenithswap] Swap #${i + 1} failed: ${e.message}`, Colors.FgRed, '❌'); }
+            } catch (e) { log('SWAP', `[Zenithswap] Swap #${i + 1} failed: ${e.message.split('(')[0]}`, Colors.FgRed, '❌'); }
             if (i < count - 1) { 
                 const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
                 log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳'); await new Promise(r => setTimeout(r, randomDelay));
@@ -439,22 +477,20 @@ class AccountProcessor {
         }
     }
 
-    async #approveForLP(tokenAddress, spender, amount, tokenSymbolForLog, dexName) {
+    async #approveToken(tokenAddress, spender, amount, tokenSymbolForLog, platform) {
         const tokenContract = new ethers.Contract(tokenAddress, BaseERC20_ABI, this.wallet);
-        
-        let allowance = 0n;
         try {
-            allowance = await tokenContract.allowance(this.address, spender);
+            const allowance = await tokenContract.allowance(this.address, spender);
+            if (allowance < amount) {
+                log(platform, `Approving ${tokenSymbolForLog} for ${platform}...`, Colors.FgYellow, '🔑');
+                const txData = await tokenContract.approve.populateTransaction(spender, ethers.MaxUint256);
+                await this.#executeTx(txData, `Approve ${tokenSymbolForLog} for ${platform}`);
+            } else {
+                log(platform, `Token ${tokenSymbolForLog} already approved for ${platform}.`, Colors.FgGreen, '👍');
+            }
         } catch (e) {
-            log('LIQUIDITY', `[${dexName}] Could not check allowance for ${tokenSymbolForLog}, assuming 0. (${e.message})`, Colors.FgYellow, '⚠️');
-        }
-        
-        if (allowance < amount) {
-            log('LIQUIDITY', `[${dexName}] Approving ${tokenSymbolForLog}...`, Colors.FgYellow, '🔑');
-            const txData = await tokenContract.approve.populateTransaction(spender, ethers.MaxUint256);
-            await this.#executeTx(txData, `Approve ${tokenSymbolForLog} for ${dexName} LP`);
-        } else {
-             log('LIQUIDITY', `[${dexName}] Token ${tokenSymbolForLog} already approved.`, Colors.FgGreen, '👍');
+            log(platform, `Could not approve token ${tokenSymbolForLog}: ${e.message}`, Colors.FgRed, '❌');
+            throw e;
         }
     }
 
@@ -504,7 +540,6 @@ class AccountProcessor {
 
                 const hasToken1 = await this.#ensureTokenBalance(token1, amount1Desired, 'Zenithswap');
                 if (!hasToken1) throw new Error(`Could not ensure ${token1} balance for LP.`);
-
                 if (token0 === 'WPHRS' || token1 === 'WPHRS') {
                     const wphrsTokenAddress = Z_TOKENS['WPHRS'];
                     const wphrsContract = new ethers.Contract(wphrsTokenAddress, DEX_CONFIGS.ZENITHSWAP.ERC20_ABI, this.wallet);
@@ -522,8 +557,8 @@ class AccountProcessor {
                     }
                 }
 
-                await this.#approveForLP(token0Address, POSITION_MANAGER_ADDRESS, amount0Desired, token0, 'Zenith');
-                await this.#approveForLP(token1Address, POSITION_MANAGER_ADDRESS, amount1Desired, token1, 'Zenith');
+                await this.#approveToken(token0Address, POSITION_MANAGER_ADDRESS, amount0Desired, token0, 'Zenith');
+                await this.#approveToken(token1Address, POSITION_MANAGER_ADDRESS, amount1Desired, token1, 'Zenith');
 
                 const positionManager = new ethers.Contract(POSITION_MANAGER_ADDRESS, POSITION_MANAGER_ABI, this.wallet);
                 const existingPosition = await this.#findExistingPositionZenith({ token0: token0Address, token1: token1Address, fee: FEE, positionManager });
@@ -544,7 +579,7 @@ class AccountProcessor {
                 await this.#executeTx(txData, `Add LP ${token0}/${token1} (Zenith)`);
                 log('LIQUIDITY', `[Zenithswap] Add Liquidity #${i + 1} completed.`, Colors.FgGreen, '✅');
             } catch (e) {
-                log('LIQUIDITY', `[Zenithswap] Add Liquidity #${i + 1} failed: ${e.message}`, Colors.FgRed, '❌');
+                log('LIQUIDITY', `[Zenithswap] Add Liquidity #${i + 1} failed: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
             }
 
             if (i < count - 1) {
@@ -556,85 +591,330 @@ class AccountProcessor {
     }
     
     async batchAddLiquidityFaro() {
-    const { lpParams, minDelayMs, maxDelayMs, faroPools } = this.operationParams;
-    if (!lpParams || !lpParams.FAROSWAP || !faroPools) return;
-    const { baseToken, quoteToken, baseAmount, quoteAmount, count } = lpParams.FAROSWAP;
-    const baseTokenAddress = DEX_CONFIGS.FAROSWAP.TOKENS[baseToken];
-    const quoteTokenAddress = DEX_CONFIGS.FAROSWAP.TOKENS[quoteToken];
+        const { lpParams, minDelayMs, maxDelayMs, faroPools } = this.operationParams;
+        if (!lpParams || !lpParams.FAROSWAP || !faroPools) return;
+        const { baseToken, quoteToken, baseAmount, quoteAmount, count } = lpParams.FAROSWAP;
+        const baseTokenAddress = DEX_CONFIGS.FAROSWAP.TOKENS[baseToken];
+        const quoteTokenAddress = DEX_CONFIGS.FAROSWAP.TOKENS[quoteToken];
 
-    const pairKey = `${baseToken}_${quoteToken}`;
-    const dvmPairAddress = faroPools[pairKey];
+        const pairKey = `${baseToken}_${quoteToken}`;
+        const dvmPairAddress = faroPools[pairKey];
+        if (!dvmPairAddress) {
+            log('LIQUIDITY', `[Faroswap] Pool address for the specific pair "${pairKey}" not found in your pools.json. Skipping.`, Colors.FgRed, '❌');
+            return;
+        }
 
-    if (!dvmPairAddress) {
-        log('LIQUIDITY', `[Faroswap] Pool address for the specific pair "${pairKey}" not found in your pools.json. Skipping.`, Colors.FgRed, '❌');
-        return;
+        for (let i = 0; i < count; i++) {
+            log('LIQUIDITY', `[Faroswap] Initiating Add Liquidity #${i + 1}/${count} for ${pairKey} to pool ${dvmPairAddress.slice(0,10)}...`, Colors.FgMagenta, '💧');
+            try {
+                const baseDecimals = (baseToken === 'USDC' || baseToken === 'USDT') ? 6 : 18;
+                const quoteDecimals = (quoteToken === 'USDC' || quoteToken === 'USDT') ? 6 : 18;
+                const baseAmountInWei = ethers.parseUnits(baseAmount.toString(), baseDecimals);
+                const quoteAmountInWei = ethers.parseUnits(quoteAmount.toString(), quoteDecimals);
+                const baseTokenContract = new ethers.Contract(baseTokenAddress, BaseERC20_ABI, this.provider);
+                const currentBaseBalance = await baseTokenContract.balanceOf(this.address);
+                if (currentBaseBalance < baseAmountInWei) {
+                    throw new Error(`Insufficient ${baseToken} balance. Have: ${ethers.formatUnits(currentBaseBalance, baseDecimals)}, Need: ${ethers.formatUnits(baseAmountInWei, baseDecimals)}`);
+                }
+
+                const quoteTokenContract = new ethers.Contract(quoteTokenAddress, BaseERC20_ABI, this.provider);
+                const currentQuoteBalance = await quoteTokenContract.balanceOf(this.address);
+                if (currentQuoteBalance < quoteAmountInWei) {
+                    throw new Error(`Insufficient ${quoteToken} balance. Have: ${ethers.formatUnits(currentQuoteBalance, quoteDecimals)}, Need: ${ethers.formatUnits(quoteAmountInWei, quoteDecimals)}`);
+                }
+
+                await this.#approveToken(baseTokenAddress, DVM_ROUTER_ADDRESS, baseAmountInWei, baseToken, 'Faro');
+                await this.#approveToken(quoteTokenAddress, DVM_ROUTER_ADDRESS, quoteAmountInWei, quoteToken, 'Faro');
+
+                const dvmRouterContract = new ethers.Contract(DVM_ROUTER_ADDRESS, DVM_ROUTER_ABI, this.wallet);
+                const deadline = Math.floor(Date.now() / 1000) + 600;
+
+                const txData = await dvmRouterContract.addDVMLiquidity.populateTransaction(
+                    dvmPairAddress,
+                    baseAmountInWei,
+                    quoteAmountInWei,
+                    0, 0, 0,
+                    deadline
+                );
+                txData.gasLimit = 2000000n;
+                
+                await this.#executeTx(txData, `Add LP ${pairKey} (Faro)`);
+                log('LIQUIDITY', `[Faroswap] Add DVM Liquidity #${i + 1} completed.`, Colors.FgGreen, '✅');
+            } catch (e) {
+                log('LIQUIDITY', `[Faroswap] Add DVM Liquidity #${i + 1} failed: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
+            }
+
+            if (i < count - 1) {
+                const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+                log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
+                await new Promise(r => setTimeout(r, randomDelay));
+            }
+        }
     }
 
-    for (let i = 0; i < count; i++) {
-        log('LIQUIDITY', `[Faroswap] Initiating Add Liquidity #${i + 1}/${count} for ${pairKey} to pool ${dvmPairAddress.slice(0,10)}...`, Colors.FgMagenta, '💧');
-        try {
-            const baseDecimals = (baseToken === 'USDC' || baseToken === 'USDT') ? 6 : 18;
-            const quoteDecimals = (quoteToken === 'USDC' || quoteToken === 'USDT') ? 6 : 18;
-            const baseAmountInWei = ethers.parseUnits(baseAmount.toString(), baseDecimals);
-            const quoteAmountInWei = ethers.parseUnits(quoteAmount.toString(), quoteDecimals);
+    async batchMintOpenFi() {
+        log('OPENFI-MINT', `Starting Faucet Minting task...`, Colors.Bright, '💧');
+        const assetsToMint = Object.entries(OPENFI_CONFIGS.ASSETS).filter(([symbol]) => symbol !== 'WPHRS');
 
-            // Pengecekan saldo (logika ini sudah benar dari sebelumnya)
-            const baseTokenContract = new ethers.Contract(baseTokenAddress, BaseERC20_ABI, this.provider);
-            const currentBaseBalance = await baseTokenContract.balanceOf(this.address);
-            if (currentBaseBalance < baseAmountInWei) {
-                throw new Error(`Insufficient ${baseToken} balance. Have: ${ethers.formatUnits(currentBaseBalance, baseDecimals)}, Need: ${ethers.formatUnits(baseAmountInWei, baseDecimals)}`);
-            }
-
-            const quoteTokenContract = new ethers.Contract(quoteTokenAddress, BaseERC20_ABI, this.provider);
-            const currentQuoteBalance = await quoteTokenContract.balanceOf(this.address);
-            if (currentQuoteBalance < quoteAmountInWei) {
-                throw new Error(`Insufficient ${quoteToken} balance. Have: ${ethers.formatUnits(currentQuoteBalance, quoteDecimals)}, Need: ${ethers.formatUnits(quoteAmountInWei, quoteDecimals)}`);
-            }
-
-            // Memberikan izin ke Router
-            await this.#approveForLP(baseTokenAddress, DVM_ROUTER_ADDRESS, baseAmountInWei, baseToken, 'Faro');
-            await this.#approveForLP(quoteTokenAddress, DVM_ROUTER_ADDRESS, quoteAmountInWei, quoteToken, 'Faro');
-
-            const dvmRouterContract = new ethers.Contract(DVM_ROUTER_ADDRESS, DVM_ROUTER_ABI, this.wallet);
-            const deadline = Math.floor(Date.now() / 1000) + 600;
-
-            const txData = await dvmRouterContract.addDVMLiquidity.populateTransaction(
-                dvmPairAddress,
-                baseAmountInWei,
-                quoteAmountInWei,
-                0, 0, 0,
-                deadline
-            );
-            txData.gasLimit = 2000000n;
+        for (const [symbol, asset] of assetsToMint) {
+            const description = `Mint 100 ${symbol} from OpenFi Faucet`;
+            log('OPENFI-MINT', `Minting 100 ${symbol}...`, Colors.FgMagenta, '➕');
             
-            await this.#executeTx(txData, `Add LP ${pairKey} (Faro)`);
-            log('LIQUIDITY', `[Faroswap] Add DVM Liquidity #${i + 1} completed.`, Colors.FgGreen, '✅');
-
-        } catch (e) {
-            log('LIQUIDITY', `[Faroswap] Add DVM Liquidity #${i + 1} failed: ${e.message}`, Colors.FgRed, '❌');
-        }
-
-        if (i < count - 1) {
-            const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
-            log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
-            await new Promise(r => setTimeout(r, randomDelay));
+            try {
+                const mintContract = new ethers.Contract(OPENFI_CONFIGS.MINT_ROUTER_ADDRESS, OPENFI_CONFIGS.MINT_ABI, this.wallet);
+                const amountWei = ethers.parseUnits("100", asset.decimals);
+                const txRequest = await mintContract.mint.populateTransaction(asset.address, this.address, amountWei);
+                
+                await this.#executeTx(txRequest, description);
+                const { minDelayMs, maxDelayMs } = this.operationParams;
+                const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+                log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
+                await new Promise(r => setTimeout(r, randomDelay));
+            } catch(e) {
+                if (e.message.includes("Mint limit transaction exceeded")) {
+                    log('OPENFI-MINT', `[SKIP] Minting limit for ${symbol} has been reached. Skipping...`, Colors.FgYellow, '⚠️');
+                    continue; 
+                } else {
+                    log('OPENFI-MINT', `[FAIL] Failed to process mint for ${symbol}: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
+                }
+            }
         }
     }
-}
 
+    async depositOpenFi() {
+        const { openFiAmounts } = this.operationParams;
+        if (!openFiAmounts || !openFiAmounts.deposit) {
+            log('OPENFI-DEPOSIT', `Deposit amount not configured. Skipping.`, Colors.FgYellow, '⚠️');
+            return;
+        }
+        const amount = openFiAmounts.deposit;
+        log('OPENFI-DEPOSIT', `Starting Deposit task: ${amount} PHRS...`, Colors.Bright, '📥');
+        
+        try {
+            const amountWei = ethers.parseEther(amount.toString());
+            const lendingContract = new ethers.Contract(OPENFI_CONFIGS.DEPOSIT_ROUTER_ADDRESS, OPENFI_CONFIGS.LENDING_ABI, this.wallet);
+            
+            const lendingPool = ethers.ZeroAddress; 
+            const referralCode = 0;
+
+            const txData = await lendingContract.depositETH.populateTransaction(lendingPool, this.address, referralCode, { value: amountWei });
+            await this.#executeTx(txData, `Deposit ${amount} PHRS to OpenFi`);
+
+        } catch(e) {
+            log('OPENFI-DEPOSIT', `[FAIL] Failed to deposit PHRS: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
+        }
+    }
+
+    async batchSupplyOpenFi() {
+        const { openFiAmounts, minDelayMs, maxDelayMs } = this.operationParams;
+        if (!openFiAmounts || !openFiAmounts.supply) return new Set();
+        
+        const failedSymbols = new Set();
+        const amount = openFiAmounts.supply;
+        log('OPENFI-SUPPLY', `Starting Supply task: ${amount} of each token...`, Colors.Bright, '📤');
+
+        for (const [symbol, asset] of Object.entries(OPENFI_CONFIGS.ASSETS)) {
+            const description = `Supply ${amount} ${symbol} to OpenFi`;
+            log('OPENFI-SUPPLY', `Supplying ${amount} ${symbol}...`, Colors.FgMagenta, '➕');
+            
+            try {
+                const amountWei = ethers.parseUnits(amount.toString(), asset.decimals);
+                const tokenContract = new ethers.Contract(asset.address, BaseERC20_ABI, this.provider);
+                const balance = await tokenContract.balanceOf(this.address);
+
+                if (balance < amountWei) {
+                    log('OPENFI-SUPPLY', `[SKIP] Insufficient ${symbol} balance. Skipping.`, Colors.FgYellow, '⚠️');
+                    failedSymbols.add(symbol);
+                    continue;
+                }
+
+                await this.#approveToken(asset.address, OPENFI_CONFIGS.SUPPLY_ROUTER_ADDRESS, amountWei, symbol, 'OPENFI');
+                const lendingContract = new ethers.Contract(OPENFI_CONFIGS.SUPPLY_ROUTER_ADDRESS, OPENFI_CONFIGS.LENDING_ABI, this.wallet);
+                const referralCode = 0;
+                const txData = await lendingContract.supply.populateTransaction(asset.address, amountWei, this.address, referralCode);
+                await this.#executeTx(txData, description);
+
+                const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+                log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
+                await new Promise(r => setTimeout(r, randomDelay));
+            } catch(e) {
+                log('OPENFI-SUPPLY', `[FAIL] Failed to supply ${symbol}: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
+                failedSymbols.add(symbol);
+            }
+        }
+        return failedSymbols;
+    }
+    
+    async batchBorrowOpenFi(failedSupplySymbols = new Set()) {
+        const { openFiAmounts, minDelayMs, maxDelayMs } = this.operationParams;
+        if (!openFiAmounts || !openFiAmounts.borrow) return;
+
+        const amount = openFiAmounts.borrow;
+        log('OPENFI-BORROW', `Starting Borrow task: ${amount} of each token...`, Colors.Bright, '💸');
+        
+        for (const [symbol, asset] of Object.entries(OPENFI_CONFIGS.ASSETS)) {
+            if (failedSupplySymbols.has(symbol)) {
+                log('OPENFI-BORROW', `[SKIP] Skipping borrow for ${symbol} because its supply failed.`, Colors.FgYellow, '⚠️');
+                continue;
+            }
+
+            const description = `Borrow ${amount} ${symbol} from OpenFi`;
+            log('OPENFI-BORROW', `Borrowing ${amount} ${symbol}...`, Colors.FgMagenta, '➕');
+            try {
+                const amountWei = ethers.parseUnits(amount.toString(), asset.decimals);
+                const interestRateMode = 2;
+                const referralCode = 0;
+                
+                const lendingContract = new ethers.Contract(OPENFI_CONFIGS.SUPPLY_ROUTER_ADDRESS, OPENFI_CONFIGS.LENDING_ABI, this.wallet);
+                const txData = await lendingContract.borrow.populateTransaction(asset.address, amountWei, interestRateMode, referralCode, this.address);
+                
+                await this.#executeTx(txData, description);
+                const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+                log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
+                await new Promise(r => setTimeout(r, randomDelay));
+            } catch(e) {
+                log('OPENFI-BORROW', `[FAIL] Failed to borrow ${symbol}: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
+            }
+        }
+    }
+
+    async batchWithdrawOpenFi() {
+        log('OPENFI-WITHDRAW', `Starting Withdraw task...`, Colors.Bright, '💰');
+
+        for (const [symbol, asset] of Object.entries(OPENFI_CONFIGS.ASSETS)) {
+            const description = `Withdraw all ${symbol} from OpenFi`;
+            log('OPENFI-WITHDRAW', `Withdrawing all ${symbol}...`, Colors.FgMagenta, '➕');
+            
+            try {
+                const amountWei = ethers.MaxUint256;
+                const lendingContract = new ethers.Contract(OPENFI_CONFIGS.SUPPLY_ROUTER_ADDRESS, OPENFI_CONFIGS.LENDING_ABI, this.wallet);
+                const txData = await lendingContract.withdraw.populateTransaction(asset.address, amountWei, this.address);
+
+                await this.#executeTx(txData, description);
+
+                const { minDelayMs, maxDelayMs } = this.operationParams;
+                const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+                log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
+                await new Promise(r => setTimeout(r, randomDelay));
+            } catch(e) {
+                log('OPENFI-WITHDRAW', `[FAIL] Failed to withdraw ${symbol}: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
+            }
+        }
+    }
+    
+    async claimBrokexFaucet() {
+        log('BROKEX', `Claiming USDT from Faucet...`, Colors.Bright, '💧');
+        try {
+            const faucetContract = new ethers.Contract(BROKEX_CONFIGS.CLAIM_ROUTER_ADDRESS, BROKEX_CONFIGS.CLAIM_ABI, this.wallet);
+            const txData = await faucetContract.claim.populateTransaction();
+            await this.#executeTx(txData, 'Claim USDT from Brokex Faucet');
+        } catch(e) {
+            log('BROKEX', `[FAIL] Failed to claim from faucet: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
+        }
+    }
+    
+    async batchBrokexTrade() {
+        const { brokexParams, minDelayMs, maxDelayMs } = this.operationParams;
+        if (!brokexParams) return;
+
+        const { tradeCount, tradeAmount } = brokexParams;
+        log('BROKEX', `Starting Trading task: ${tradeCount} trades of ${tradeAmount} USDT each...`, Colors.Bright, '📈');
+        for (let i = 0; i < tradeCount; i++) {
+            log('BROKEX', `--- Starting Trade #${i+1}/${tradeCount} ---`, Colors.Bright);
+            try {
+                const usdtContract = new ethers.Contract(BROKEX_CONFIGS.USDT_ADDRESS, BaseERC20_ABI, this.provider);
+                const usdtDecimals = await usdtContract.decimals();
+                const amountWei = ethers.parseUnits(tradeAmount, usdtDecimals);
+
+                const balance = await usdtContract.balanceOf(this.address);
+                if (balance < amountWei) {
+                    log('BROKEX', `[SKIP] Insufficient USDT balance for trade. Have ${ethers.formatUnits(balance, usdtDecimals)}, need ${tradeAmount}.`, Colors.FgYellow, '⚠️');
+                    break;
+                }
+
+                await this.#approveToken(BROKEX_CONFIGS.USDT_ADDRESS, BROKEX_CONFIGS.TRADE_ROUTER_ADDRESS, amountWei, 'USDT', 'BROKEX');
+                const pair = getRandomElement(BROKEX_CONFIGS.PAIRS);
+                const action = getRandomElement([0, 1]);
+                const actionName = action === 1 ? "Long" : "Short";
+                const encodedData = ethers.AbiCoder.defaultAbiCoder().encode(
+                    ['uint256', 'uint256', 'uint256', 'uint256', 'uint256', 'uint256'],
+                    [pair.id, action, amountWei, 5, 0, 0]
+                );
+                const calldata = "0x3c1395d2" + encodedData.substring(2);
+
+                const txRequest = {
+                    to: BROKEX_CONFIGS.TRADE_ROUTER_ADDRESS,
+                    data: calldata,
+                    value: 0,
+                };
+                await this.#executeTx(txRequest, `Trade ${actionName} ${pair.name}`);
+
+            } catch (e) {
+                log('BROKEX', `[FAIL] Trade #${i+1} failed: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
+            }
+
+            if (i < tradeCount - 1) {
+                const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+                log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
+                await new Promise(r => setTimeout(r, randomDelay));
+            }
+        }
+    }
+
+    async batchZentrafiUnwrap() {
+        const { zentrafiParams, minDelayMs, maxDelayMs } = this.operationParams;
+        if (!zentrafiParams || !zentrafiParams.unwrapOps || zentrafiParams.unwrapOps <= 0) return;
+        
+        log('ZENTRAFI', `Starting Unwrap task: ${zentrafiParams.unwrapOps} operations...`, Colors.Bright, '-');
+        
+        for (let i = 0; i < zentrafiParams.unwrapOps; i++) {
+            const description = `Unwrap WPHRS on Zentra #${i+1}`;
+            log('ZENTRAFI', description, Colors.FgMagenta, '➕');
+            try {
+                const wphrsContract = new ethers.Contract(ZENTRAFI_CONFIGS.WPHRS_ADDRESS, ZENTRAFI_CONFIGS.WPHRS_ABI, this.wallet);
+                const wphrsBalance = await new ethers.Contract(ZENTRAFI_CONFIGS.WPHRS_ADDRESS, BaseERC20_ABI, this.provider).balanceOf(this.address);
+                
+                if (wphrsBalance === 0n) {
+                    log('ZENTRAFI', '[SKIP] No WPHRS to unwrap.', Colors.FgYellow, '⚠️');
+                    break;
+                }
+                
+                const txData = await wphrsContract.withdraw.populateTransaction(wphrsBalance);
+                await this.#executeTx(txData, description);
+                
+                const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+                log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
+                await new Promise(r => setTimeout(r, randomDelay));
+            } catch (e) {
+                log('ZENTRAFI', `[FAIL] ${description} failed: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
+            }
+        }
+    }
+
+    async mintGotchipusNft() {
+        log('GOTCHIPUS', `Attempting to mint Gotchipus NFT...`, Colors.Bright, '👾');
+        try {
+            const txRequest = {
+                to: GOTCHIPUS_CONFIGS.CONTRACT_ADDRESS,
+                data: GOTCHIPUS_CONFIGS.MINT_FUNCTION_SELECTOR,
+                value: 0,
+            };
+            await this.#executeTx(txRequest, 'Mint Gotchipus NFT');
+            return true;
+        } catch (e) {
+            log('GOTCHIPUS', `[FAIL] Failed to mint Gotchipus NFT: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
+            return false;
+        }
+    }
 
     async run() {
         try {
-            this.nonce = await this.provider.getTransactionCount(this.address);
-            log('SYSTEM', `Initial nonce for ${this.address.slice(0,8)} is ${this.nonce}`, Colors.FgDim, '🔢');
-    
+            const { runAutoSend, swapMode, swapParams, lpMode, lpParams, runOpenFi, openFiTasks, runBrokex, brokexTasks, runZentrafi, zentrafiTasks, runGotchipusMint } = this.operationParams;
             await showAllBalances(this.address, this.provider);
             const checkinClient = new CheckinClient({ address: this.address, wallet: this.wallet, userAgent: new UserAgent().toString(), proxyAgent: this.proxyAgent }, log);
             await checkinClient.runCheckinForAccount();
             const faucetClient = new FaucetClient({ address: this.address, privateKey: this.pk }, this.accountIndex, this.proxyAgent ? this.proxyAgent.proxy : null, API_BASE_URL, this.wallet, this.provider, log);
             await faucetClient.runFaucetForAccount();
-            
-            const { runAutoSend, swapMode, swapParams, lpMode, lpParams } = this.operationParams;
             
             if (runAutoSend) await this.runAutoSend();
             if (swapMode === 'faroswap' || swapMode === 'both') {
@@ -650,9 +930,66 @@ class AccountProcessor {
             if (lpMode === 'zenithswap' || lpMode === 'both') {
                 if (lpParams && lpParams.ZENITHSWAP) await this.batchAddLiquidityZenith();
             }
+
+            if (runOpenFi && openFiTasks) {
+                log('SYSTEM', `--- Starting OpenFi Tasks ---`, Colors.Bright, '🔮');
+                if (openFiTasks.includes('mint')) {
+                    await this.batchMintOpenFi();
+                }
+
+                let failedSupplySymbols = new Set();
+                if (openFiTasks.includes('supply')) {
+                    failedSupplySymbols = await this.batchSupplyOpenFi();
+                }
+                
+                if (openFiTasks.includes('deposit')) {
+                    await this.depositOpenFi();
+                }
+
+                if (openFiTasks.includes('borrow')) {
+                    await this.batchBorrowOpenFi(failedSupplySymbols);
+                }
+                
+                if (openFiTasks.includes('withdraw')) {
+                    await this.batchWithdrawOpenFi();
+                }
+                log('SYSTEM', `--- Finished OpenFi Tasks ---`, Colors.Bright, '🔮');
+            }
+
+            if (runBrokex && brokexTasks) {
+                log('SYSTEM', `--- Starting Brokex Tasks ---`, Colors.Bright, '📈');
+                if (brokexTasks.includes('claim')) {
+                    await this.claimBrokexFaucet();
+                }
+                if (brokexTasks.includes('trade')) {
+                    await this.batchBrokexTrade();
+                }
+                log('SYSTEM', `--- Finished Brokex Tasks ---`, Colors.Bright, '📈');
+            }
+            
+            if (runZentrafi && zentrafiTasks) {
+                log('SYSTEM', `--- Starting Zentra Tasks ---`, Colors.Bright, '-');
+                if (zentrafiTasks.includes('unwrap')) {
+                    await this.batchZentrafiUnwrap();
+                }
+                log('SYSTEM', `--- Finished Zentra Tasks ---`, Colors.Bright, '-');
+            }
+
+            if (runGotchipusMint) {
+                const mintedKeys = this.operationParams.mintedKeys || new Set();
+                if (mintedKeys.has(this.pk)) {
+                    log('GOTCHIPUS', `[SKIP] Wallet has already minted.`, Colors.FgYellow, '👍');
+                } else {
+                    const success = await this.mintGotchipusNft();
+                    if (success) {
+                        log('ACCOUNT', `Finished all operations for ${this.address}.`, Colors.FgGreen, '✅');
+                        return { success: true, address: this.address, mintedNft: true, pk: this.pk };
+                    }
+                }
+            }
             
             log('ACCOUNT', `Finished all operations for ${this.address}.`, Colors.FgGreen, '✅');
-            return { success: true, address: this.address };
+            return { success: true, address: this.address, mintedNft: false };
         } catch (error) {
             log('ACCOUNT', `An error occurred during operations for ${this.address}: ${error.message}`, Colors.FgRed, '❌');
             return { success: false, address: this.address, error: error.message };
@@ -660,15 +997,90 @@ class AccountProcessor {
     }
 }
 
-async function processAccountOperation(account, operationParams) {
+async function saveMintedKey(pk, filename) {
+    try {
+        await fsp.appendFile(filename, `${pk}\n`);
+    } catch (e) {
+        log('SYSTEM', `Failed to save minted key to ${filename}: ${e.message}`, Colors.FgRed, '❌');
+    }
+}
+
+async function checkAllAccountPoints(accounts, operationParams) {
+    log('POINTS', '--- Starting Point Check for All Accounts ---', Colors.Bright, '🌟');
+    let totalPoints = 0;
+
+    for (const account of accounts) {
+        const wallet = new ethers.Wallet(account.pk);
+        const address = wallet.address;
+        log('POINTS', `Checking points for ${address.slice(0, 10)}...`, Colors.FgCyan);
+        try {
+            const signature = await wallet.signMessage("pharos");
+            const loginUrl = `${API_BASE_URL}/user/login?address=${address}&signature=${signature}`;
+            const loginRes = await fetch(loginUrl, { 
+                method: 'POST', 
+                headers: { 'Origin': 'https://testnet.pharosnetwork.xyz', 'Referer': 'https://testnet.pharosnetwork.xyz' },
+                agent: account.proxyAgent 
+            });
+            if (!loginRes.ok) {
+                log('POINTS', `[FAIL] Login failed for ${address.slice(0,10)}. Status: ${loginRes.status}`, Colors.FgRed, '❌');
+                continue;
+            }
+
+            const loginData = await loginRes.json();
+            const token = loginData?.data?.jwt;
+
+            if (!token) {
+                log('POINTS', `[FAIL] Could not get JWT token for ${address.slice(0,10)}.`, Colors.FgRed, '❌');
+                continue;
+            }
+
+            const profileUrl = `${API_BASE_URL}/user/profile?address=${address}`;
+            const profileRes = await fetch(profileUrl, {
+                headers: { 'Authorization': `Bearer ${token}`, 'Origin': 'https://testnet.pharosnetwork.xyz', 'Referer': 'https://testnet.pharosnetwork.xyz' },
+                agent: account.proxyAgent
+            });
+            if (!profileRes.ok) {
+                log('POINTS', `[FAIL] Profile fetch failed for ${address.slice(0,10)}. Status: ${profileRes.status}`, Colors.FgRed, '❌');
+                continue;
+            }
+
+            const profileData = await profileRes.json();
+            const points = profileData?.data?.user_info?.TotalPoints ?? 0;
+            
+            log('POINTS', `${address}: ${points} Points`, Colors.FgGreen, '✅');
+            totalPoints += points;
+        } catch (e) {
+            log('POINTS', `[FAIL] Error checking points for ${address.slice(0,10)}: ${e.message}`, Colors.FgRed, '❌');
+        }
+        
+        const delay = getRandomNumber(operationParams.minDelayMs, operationParams.maxDelayMs, 0);
+        await new Promise(r => setTimeout(r, delay));
+    }
+
+    log('POINTS', `--- Total Points From All Accounts: ${totalPoints} ---`, Colors.Bright, '🌟');
+}
+
+
+async function processAccountOperation(account, operationParams, mintedKeys) {
+    const accountFullAddress = new ethers.Wallet(account.pk).address;
+    
+    // ## PERBAIKAN 1: Menghapus blok pengecekan Gotchipus dari sini ##
+    /*
+    if (operationParams.runGotchipusMint && mintedKeys.has(account.pk)) {
+        log('GOTCHIPUS', `[SKIP] Wallet ${accountFullAddress.slice(0,10)}... has already minted.`, Colors.FgYellow, '👍');
+        return { success: true, address: accountFullAddress, skipped: true };
+    }
+    */
+
     const initialDelay = Math.floor(Math.random() * 5000);
     await new Promise(r => setTimeout(r, initialDelay));
-    const accountFullAddress = new ethers.Wallet(account.pk).address;
     console.log(`\n${Colors.Bright}--- Wallet: ${accountFullAddress} (starting after ${initialDelay/1000}s delay) ---${Colors.Reset}`);
     try {
         const provider = await buildFallbackProvider(PHAROS_RPC_URLS, PHAROS_CHAIN_ID, account.proxyAgent, accountFullAddress);
         const accountPools = operationParams.faroPools[account.accountIndex] || {};
-        const paramsWithPools = {...operationParams, faroPools: accountPools };
+        
+        // ## PERBAIKAN 2: Memasukkan `mintedKeys` ke dalam parameter untuk processor ##
+        const paramsWithPools = {...operationParams, faroPools: accountPools, mintedKeys };
 
         const processor = new AccountProcessor(account, paramsWithPools, provider);
         return await processor.run();
@@ -685,9 +1097,7 @@ async function processAccountOperation(account, operationParams) {
 
     let privateKeys = [], proxyUrls = [], recipientAddresses = [], faroPools = [];
     try { privateKeys = fs.readFileSync('YourPrivateKey.txt', 'utf8').split('\n').map(line => line.trim()).filter(Boolean); log('CONFIG', `Loaded ${privateKeys.length} private keys.`, Colors.FgCyan, '✅'); } catch (e) { log('ERROR', 'YourPrivateKey.txt not found.', Colors.FgRed, '❌'); process.exit(1); }
-    try { proxyUrls = 
-    fs.readFileSync('proxy.txt', 'utf8').split('\n').map(line => line.trim()); log('CONFIG', `Loaded ${proxyUrls.length} proxy entries.`, Colors.FgCyan, '✅');
-    } catch (e) { log('WARNING', 'proxy.txt not found.', Colors.FgYellow, '⚠️'); }
+    try { proxyUrls = fs.readFileSync('proxy.txt', 'utf8').split('\n').map(line => line.trim()); log('CONFIG', `Loaded ${proxyUrls.length} proxy entries.`, Colors.FgCyan, '✅'); } catch (e) { log('WARNING', 'proxy.txt not found.', Colors.FgYellow, '⚠️'); }
     try { recipientAddresses = fs.readFileSync('wallets.txt', 'utf8').split('\n').map(line => line.trim()).filter(Boolean); log('CONFIG', `Loaded ${recipientAddresses.length} recipient addresses.`, Colors.FgCyan, '✅'); } catch (e) { log('WARNING', 'wallets.txt not found. Auto Send will be skipped.', Colors.FgYellow, '⚠️'); }
     try {
         const poolsData = fs.readFileSync('pools.json', 'utf8');
@@ -705,7 +1115,7 @@ async function processAccountOperation(account, operationParams) {
         accountIndex: i,
     }));
     log('SYSTEM', 'Welcome! Please configure the tasks for the first run.', Colors.Bright, '👋');
-    const operationParams = { swapParams: {}, lpParams: {}, faroPools };
+    const operationParams = { swapParams: {}, lpParams: {}, openFiAmounts: {}, brokexParams: {}, zentrafiParams: {}, faroPools };
     const settings = {};
     const minSecs = await askQuestion({ message: `${Colors.FgBlue}⏳ Enter MINIMUM delay between TXs (seconds): ${Colors.Reset}` });
     const maxSecs = await askQuestion({ message: `${Colors.FgBlue}⏳ Enter MAXIMUM delay between TXs (seconds): ${Colors.Reset}` });
@@ -788,53 +1198,52 @@ async function processAccountOperation(account, operationParams) {
     operationParams.lpMode = lpOptions[lpModeIndex];
 
     async function getLpParams(dexName) {
-    let pairChoices, lpPairs;
-    if (dexName === 'Faroswap') {
-        lpPairs = FAROSWAP_DVM_PAIRS;
-        pairChoices = lpPairs.map((p, i) => `   ${i + 1}. ${p.name}`).join('\n');
-    } else {
-        lpPairs = ZENITH_LP_PAIRS;
-        pairChoices = lpPairs.map((p, i) => `   ${i + 1}. ${p.name}`).join('\n');
-    }
+        let pairChoices, lpPairs;
+        if (dexName === 'Faroswap') {
+            lpPairs = FAROSWAP_DVM_PAIRS;
+            pairChoices = lpPairs.map((p, i) => `   ${i + 1}. ${p.name}`).join('\n');
+        } else {
+            lpPairs = ZENITH_LP_PAIRS;
+            pairChoices = lpPairs.map((p, i) => `   ${i + 1}. ${p.name}`).join('\n');
+        }
 
-    const pairSelectionPrompt = `${Colors.FgBlue}[${dexName}-LP] Please select a liquidity pair:\n${pairChoices}\nEnter number: ${Colors.Reset}`;
-    const pairIndex = parseInt(await askQuestion({ message: pairSelectionPrompt })) - 1;
-    if (isNaN(pairIndex) || !lpPairs[pairIndex]) {
-        log('ERROR', 'Invalid pair selection.', Colors.FgRed, '❌');
-        process.exit(1);
-    }
-    const selectedPair = lpPairs[pairIndex];
-    log('SYSTEM', `Selected pair: ${selectedPair.name}`, Colors.FgCyan, '👍');
-    const token0 = dexName === 'Faroswap' ? selectedPair.base : selectedPair.token0;
-    const token1 = dexName === 'Faroswap' ? selectedPair.quote : selectedPair.token1;
+        const pairSelectionPrompt = `${Colors.FgBlue}[${dexName}-LP] Please select a liquidity pair:\n${pairChoices}\nEnter number: ${Colors.Reset}`;
+        const pairIndex = parseInt(await askQuestion({ message: pairSelectionPrompt })) - 1;
+        if (isNaN(pairIndex) || !lpPairs[pairIndex]) {
+            log('ERROR', 'Invalid pair selection.', Colors.FgRed, '❌');
+            process.exit(1);
+        }
+        const selectedPair = lpPairs[pairIndex];
+        log('SYSTEM', `Selected pair: ${selectedPair.name}`, Colors.FgCyan, '👍');
+        const token0 = dexName === 'Faroswap' ? selectedPair.base : selectedPair.token0;
+        const token1 = dexName === 'Faroswap' ? selectedPair.quote : selectedPair.token1;
+        if (dexName === 'Faroswap') {
+            console.log('');
+            log('INFO', 'IMPORTANT NOTE FOR FAROSWAP (PMM)', Colors.FgYellow, '🔔');
+            log('INFO', "1. Ensure the amount is above the pool's minimum requirement (e.g., 0.01).", Colors.FgYellow, '   ');
+            log('INFO', '2. Amounts for USDC and USDT MUST BE THE SAME (1:1 ratio) to avoid failed transactions.', Colors.FgYellow, '   ');
+            console.log('');
+        }
 
-    if (dexName === 'Faroswap') {
-        console.log('');
-        log('INFO', 'IMPORTANT NOTE FOR FAROSWAP (PMM)', Colors.FgYellow, '🔔');
-        log('INFO', "1. Ensure the amount is above the pool's minimum requirement (e.g., 0.01).", Colors.FgYellow, '   ');
-        log('INFO', '2. Amounts for USDC and USDT MUST BE THE SAME (1:1 ratio) to avoid failed transactions.', Colors.FgYellow, '   ');
-        console.log('');
-    }
+        const amount0 = await askQuestion({ message: `${Colors.FgBlue}[${dexName}-LP] Enter amount for ${token0}: ${Colors.Reset}` });
+        const amount1 = await askQuestion({ message: `${Colors.FgBlue}[${dexName}-LP] Enter amount for ${token1}: ${Colors.Reset}` });
+        if (isNaN(amount0) || parseFloat(amount0) <= 0 || isNaN(amount1) || parseFloat(amount1) <= 0) {
+            log('ERROR', 'Invalid amount for liquidity.', Colors.FgRed, '❌');
+            process.exit(1);
+        }
 
-    const amount0 = await askQuestion({ message: `${Colors.FgBlue}[${dexName}-LP] Enter amount for ${token0}: ${Colors.Reset}` });
-    const amount1 = await askQuestion({ message: `${Colors.FgBlue}[${dexName}-LP] Enter amount for ${token1}: ${Colors.Reset}` });
-    if (isNaN(amount0) || parseFloat(amount0) <= 0 || isNaN(amount1) || parseFloat(amount1) <= 0) {
-        log('ERROR', 'Invalid amount for liquidity.', Colors.FgRed, '❌');
-        process.exit(1);
-    }
+        const count = parseInt(await askQuestion({ message: `${Colors.FgBlue}[${dexName}-LP] How many times to add liquidity?: ${Colors.Reset}` }));
+        if (isNaN(count) || count < 1) {
+            log('ERROR', 'Invalid transaction count for liquidity.', Colors.FgRed, '❌');
+            process.exit(1);
+        }
 
-    const count = parseInt(await askQuestion({ message: `${Colors.FgBlue}[${dexName}-LP] How many times to add liquidity?: ${Colors.Reset}` }));
-    if (isNaN(count) || count < 1) {
-        log('ERROR', 'Invalid transaction count for liquidity.', Colors.FgRed, '❌');
-        process.exit(1);
+        if (dexName === 'Faroswap') {
+            return { baseToken: token0, quoteToken: token1, baseAmount: amount0, quoteAmount: amount1, count };
+        } else {
+            return { token0, token1, amount0, amount1, count };
+        }
     }
-
-    if (dexName === 'Faroswap') {
-        return { baseToken: token0, quoteToken: token1, baseAmount: amount0, quoteAmount: amount1, count };
-    } else {
-        return { token0, token1, amount0, amount1, count };
-    }
-}
 
     if (operationParams.lpMode === 'faroswap') {
         operationParams.lpParams.FAROSWAP = await getLpParams('Faroswap');
@@ -846,6 +1255,140 @@ async function processAccountOperation(account, operationParams) {
         log('SYSTEM', 'Configuring ZenithSwap Liquidity...', Colors.FgMagenta, '2️⃣');
         operationParams.lpParams.ZENITHSWAP = await getLpParams('Zenithswap');
     }
+
+    const openFiPrompt = `${Colors.FgBlue}🔮 Perform OpenFi tasks?\n   1. Yes\n   2. No\nEnter number: ${Colors.Reset}`;
+    const openFiAnswer = await askQuestion({ message: openFiPrompt });
+    operationParams.runOpenFi = openFiAnswer.trim() === '1';
+    if (operationParams.runOpenFi) {
+        const openFiTaskOptions = ['mint', 'deposit', 'supply', 'borrow', 'withdraw', 'all'];
+        const openFiTaskChoices = openFiTaskOptions.map((opt, i) => `   ${i + 1}. ${opt.charAt(0).toUpperCase() + opt.slice(1)}`).join('\n');
+        const openFiSelectionPrompt = `${Colors.FgBlue}🔮 Select OpenFi Task(s) to run:\n${openFiTaskChoices}\nEnter number (for multiple tasks, separate with comma, e.g., 1,2,3): ${Colors.Reset}`;
+        const openFiTaskAnswer = await askQuestion({ message: openFiSelectionPrompt });
+        
+        const selectedIndices = openFiTaskAnswer.split(',').map(n => parseInt(n.trim()) - 1);
+        let selectedTasks = [];
+        if (selectedIndices.includes(5)) {
+            selectedTasks = ['mint', 'deposit', 'supply', 'borrow', 'withdraw'];
+        } else {
+            selectedTasks = selectedIndices
+                .filter(i => !isNaN(i) && openFiTaskOptions[i] && i !== 5)
+                .map(i => openFiTaskOptions[i]);
+        }
+        
+        if (selectedTasks.length === 0) {
+            log('ERROR', 'No valid OpenFi tasks selected.', Colors.FgRed, '❌');
+            process.exit(1);
+        }
+        operationParams.openFiTasks = selectedTasks;
+        log('SYSTEM', `Selected OpenFi tasks: ${selectedTasks.join(', ')}`, Colors.FgCyan, '👍');
+        const tokenList = Object.keys(OPENFI_CONFIGS.ASSETS).join(', ');
+        
+        if (selectedTasks.includes('deposit')) {
+            const amount = await askQuestion({ message: `${Colors.FgBlue}[OpenFi] Enter amount of PHRS to Deposit: ${Colors.Reset}` });
+            if (isNaN(amount) || parseFloat(amount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌'); process.exit(1); }
+            operationParams.openFiAmounts.deposit = amount;
+        }
+
+        if (selectedTasks.includes('supply')) {
+            const supplyMessage = `${Colors.FgBlue}[OpenFi] Enter amount for each token to Supply.\n` +
+                                  `   ${Colors.FgDim}(This amount will be used for each of the following tokens: ${tokenList})${Colors.Reset}\n` +
+                                  `${Colors.FgBlue}Enter amount: ${Colors.Reset}`;
+            const amount = await askQuestion({ message: supplyMessage });
+            if (isNaN(amount) || parseFloat(amount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌'); process.exit(1); }
+            operationParams.openFiAmounts.supply = amount;
+        }
+
+        if (selectedTasks.includes('borrow')) {
+            const borrowMessage = `${Colors.FgBlue}[OpenFi] Enter amount for each token to Borrow.\n` +
+                                  `   ${Colors.FgDim}(This amount will be used for each of the following tokens: ${tokenList})${Colors.Reset}\n` +
+                                  `${Colors.FgBlue}Enter amount: ${Colors.Reset}`;
+            const amount = await askQuestion({ message: borrowMessage });
+            if (isNaN(amount) || parseFloat(amount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌'); process.exit(1); }
+            operationParams.openFiAmounts.borrow = amount;
+        }
+
+        if (selectedTasks.includes('withdraw')) {
+            const withdrawMessage = `${Colors.FgBlue}[OpenFi] The script will attempt to withdraw the full balance of each token.${Colors.Reset}`;
+            console.log(withdrawMessage);
+        }
+    }
+    
+    const brokexPrompt = `${Colors.FgBlue}📈 Perform Brokex tasks?\n   1. Yes\n   2. No\nEnter number: ${Colors.Reset}`;
+    const brokexAnswer = await askQuestion({ message: brokexPrompt });
+    operationParams.runBrokex = brokexAnswer.trim() === '1';
+    if (operationParams.runBrokex) {
+        const brokexTaskOptions = ['claim', 'trade', 'all'];
+        const brokexTaskChoices = brokexTaskOptions.map((opt, i) => `   ${i + 1}. ${opt.charAt(0).toUpperCase() + opt.slice(1)}`).join('\n');
+        const brokexSelectionPrompt = `${Colors.FgBlue}📈 Select Brokex Task(s) to run:\n${brokexTaskChoices}\nEnter number: ${Colors.Reset}`;
+        const brokexTaskAnswer = await askQuestion({ message: brokexSelectionPrompt });
+        let selectedTasks = [];
+        const selectedIndex = parseInt(brokexTaskAnswer.trim()) - 1;
+        if (selectedIndex === 2) {
+            selectedTasks = ['claim', 'trade'];
+        } else if (selectedIndex === 0 || selectedIndex === 1) {
+            selectedTasks.push(brokexTaskOptions[selectedIndex]);
+        }
+
+        if (selectedTasks.length === 0) {
+            log('ERROR', 'No valid Brokex tasks selected.', Colors.FgRed, '❌');
+            process.exit(1);
+        }
+        operationParams.brokexTasks = selectedTasks;
+        log('SYSTEM', `Selected Brokex tasks: ${selectedTasks.join(', ')}`, Colors.FgCyan, '👍');
+        if (selectedTasks.includes('trade')) {
+            const tradeCount = await askQuestion({ message: `${Colors.FgBlue}[Brokex] How many trades to perform per wallet?: ${Colors.Reset}` });
+            if (isNaN(tradeCount) || parseInt(tradeCount) <= 0) { log('ERROR', 'Invalid trade count.', Colors.FgRed, '❌'); process.exit(1); }
+            const tradeAmount = await askQuestion({ message: `${Colors.FgBlue}[Brokex] Enter USDT amount for each trade: ${Colors.Reset}` });
+            if (isNaN(tradeAmount) || parseFloat(tradeAmount) <= 0) { log('ERROR', 'Invalid trade amount.', Colors.FgRed, '❌'); process.exit(1); }
+            operationParams.brokexParams = { tradeCount: parseInt(tradeCount), tradeAmount };
+        }
+    }
+
+    const zentraPrompt = `${Colors.FgBlue}Z Perform Zentra tasks?\n   1. Yes\n   2. No\nEnter number: ${Colors.Reset}`;
+    const zentraAnswer = await askQuestion({ message: zentraPrompt });
+    operationParams.runZentrafi = zentraAnswer.trim() === '1';
+    if (operationParams.runZentrafi) {
+        const zentraTaskChoices = `   1. Unwrap\n` +
+                                `   2. Swap (Coming Soon)\n` +
+                                `   3. Add Liquidity (Coming Soon)`;
+        const zentraSelectionPrompt = `${Colors.FgBlue}Z Select Zentra Task(s) to run:\n${zentraTaskChoices}\n${Colors.FgYellow}Note: Only Unwrap is currently available.${Colors.Reset}\nEnter number: ${Colors.Reset}`;
+        const zentraTaskAnswer = await askQuestion({ message: zentraSelectionPrompt });
+
+        let selectedTasks = [];
+        const selectedIndex = parseInt(zentraTaskAnswer.trim());
+        if (selectedIndex === 1) {
+            selectedTasks.push('unwrap');
+        } else {
+            log('SYSTEM', 'Invalid or unavailable option selected. Skipping Zentra tasks.', Colors.FgYellow, '⚠️');
+        }
+        
+        operationParams.zentrafiTasks = selectedTasks;
+        if (selectedTasks.length > 0) {
+            log('SYSTEM', `Selected Zentra tasks: ${selectedTasks.join(', ')}`, Colors.FgCyan, '👍');
+            const zentrafiParams = {};
+            if (selectedTasks.includes('unwrap')) {
+                const unwrapOps = await askQuestion({ message: `${Colors.FgBlue}[Zentra] How many Unwrap WPHRS operations?: ${Colors.Reset}` });
+                if (isNaN(unwrapOps) || parseInt(unwrapOps) < 0) { log('ERROR', 'Invalid number of operations.', Colors.FgRed, '❌'); process.exit(1); }
+                zentrafiParams.unwrapOps = parseInt(unwrapOps);
+            }
+            operationParams.zentrafiParams = zentrafiParams;
+        }
+    }
+
+    const gotchipusPrompt = `${Colors.FgBlue}👾 Perform Gotchipus NFT Mint task?\n   1. Yes\n   2. No\nEnter number: ${Colors.Reset}`;
+    const gotchipusAnswer = await askQuestion({ message: gotchipusPrompt });
+    operationParams.runGotchipusMint = gotchipusAnswer.trim() === '1';
+    
+    let mintedKeys = new Set();
+    if (operationParams.runGotchipusMint) {
+        try {
+            const data = fs.readFileSync('minted_gotchipus.txt', 'utf8');
+            mintedKeys = new Set(data.split('\n').map(line => line.trim()).filter(Boolean));
+            log('CONFIG', `Loaded ${mintedKeys.size} already minted wallets for Gotchipus.`, Colors.FgCyan, '✅');
+        } catch (e) {
+            log('WARNING', 'minted_gotchipus.txt not found. Will create a new one.', Colors.FgYellow, '⚠️');
+        }
+    }
     
     log('SYSTEM', 'Configuration saved. These settings will be used for all subsequent daily runs.', Colors.FgGreen, '⚙️');
     let runCount = 0;
@@ -854,16 +1397,25 @@ async function processAccountOperation(account, operationParams) {
         log('SYSTEM', `--- Starting Daily Run #${runCount} ---`, Colors.Bright, '☀️');
 
         const results = await Promise.all(accountsToProcess.map(account => 
-            processAccountOperation(account, operationParams).catch(err => {
+            processAccountOperation(account, operationParams, mintedKeys).catch(err => {
                 const address = new ethers.Wallet(account.pk).address;
                 log('SYSTEM', `Caught an unhandled error for account ${address}: ${err.message}`, Colors.FgRed, '🚨');
                 return { success: false, address: address, error: `Unhandled system error: ${err.message}` };
             })
         ));
+        for (const res of results) {
+            if (res && res.mintedNft) {
+                await saveMintedKey(res.pk, 'minted_gotchipus.txt');
+                mintedKeys.add(res.pk);
+            }
+        }
+
         log('SUMMARY', '\n--- Account Processing Summary ---', Colors.Bright);
         results.forEach(res => { 
             if (res && res.address) {
-                if (res.success) { 
+                if (res.skipped) {
+                    log('SUMMARY', `Account ${res.address}: ✅ SKIPPED (Already minted)`, Colors.FgYellow);
+                } else if (res.success) { 
                     log('SUMMARY', `Account ${res.address}: ✅ SUCCESS`, Colors.FgGreen); 
                 } else { 
                     log('SUMMARY', `Account ${res.address}: ❌ FAILED - ${res.error}`, Colors.FgRed); 
@@ -874,8 +1426,9 @@ async function processAccountOperation(account, operationParams) {
         });
         log('SUMMARY', '----------------------------------', Colors.Bright);
         
-        log('SYSTEM', 'Check all your task points here: https://pharoshub.xyz/', Colors.Bright, '🎉');
+        await checkAllAccountPoints(accountsToProcess, operationParams);
         
+        log('SYSTEM', 'The point summary above is based on the latest API data. You can also verify your stats on the here: https://pharoshub.xyz/', Colors.Bright, '🎉');
         await runCountdown(DAILY_RUN_INTERVAL_HOURS);
     }
 })();
