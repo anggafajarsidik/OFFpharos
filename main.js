@@ -14,7 +14,7 @@ import { CheckinClient } from './checkinservice.js';
 
 dotenv.config();
 
-const GAS_FEE_MULTIPLIER = 3;
+const GAS_FEE_MULTIPLIER = 2.5;
 const DAILY_RUN_INTERVAL_HOURS = 24;
 const MINIMUM_LP_TOP_UP_SWAP = "0.001";
 const APPROX_PRICES_IN_PHRS = {
@@ -110,6 +110,7 @@ const GOTCHIPUS_CONFIGS = {
     CONTRACT_ADDRESS: "0x0000000038f050528452d6da1e7aacfa7b3ec0a8",
     MINT_FUNCTION_SELECTOR: "0x5b70ea9f"
 };
+
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const Colors = { Reset: "\x1b[0m", Bright: "\x1b[1m", FgRed: "\x1b[31m", FgGreen: "\x1b[32m", FgYellow: "\x1b[33m", FgBlue: "\x1b[34m", FgMagenta: "\x1b[35m", FgCyan: "\x1b[36m", FgDim: "\x1b[2m"};
 function log(prefix, message, color = Colors.Reset, symbol = '➡️') { const timestamp = new Date().toLocaleTimeString(); console.log(`${color}${symbol} [${timestamp}] ${prefix}: ${message}${Colors.Reset}`); }
@@ -286,15 +287,14 @@ class AccountProcessor {
         for (let i = 0; i < targetRecipients.length; i++) {
             const recipient = targetRecipients[i];
             try {
-                let amount = getRandomNumber(settings.AMOUNT_SEND[0], settings.AMOUNT_SEND[1], 5);
-                log('AUTO-SEND', `[${i + 1}/${targetRecipients.length}] Preparing to send ${amount} PHRS to ${recipient.slice(0, 8)}...`, Colors.FgMagenta, '📤');
-                const txRequest = { to: recipient, value: ethers.parseEther(amount.toString()) };
-                
-                const receipt = await this.#executeTx(txRequest, `Send ${amount} PHRS`);
-                if (receipt) {
-                    await this.handleVerifyTaskWithHash({ taskId: 103, txHash: receipt.hash });
-                }
-            } catch (e) {
+    let amount = getRandomNumber(settings.AMOUNT_SEND[0], settings.AMOUNT_SEND[1], 5);
+    log('AUTO-SEND', `[${i + 1}/${targetRecipients.length}] Preparing to send ${amount} PHRS to ${recipient.slice(0, 8)}...`, Colors.FgMagenta, '📤');
+    const txRequest = { to: recipient, value: ethers.parseEther(amount.toString()) };
+    
+    const receipt = await this.#executeTx(txRequest, `Send ${amount} PHRS`);
+    if (receipt) {
+    }
+} catch (e) {
                 log('AUTO-SEND', `Send transaction to ${recipient.slice(0,8)} failed: ${e.message}`, Colors.FgRed, '❌');
                 if (e.message.includes('insufficient funds')) {
                     log('AUTO-SEND', 'Stopping due to insufficient funds.', Colors.FgRed, '🛑');
@@ -366,14 +366,14 @@ class AccountProcessor {
         
         try {
             const deficit = requiredAmountWei - currentBalance;
-            const deficitFloat = parseFloat(ethers.formatUnits(deficit, 18));
-            log('LIQUIDITY', `[${dexName}] Insufficient ${tokenSymbol} balance. Have: ${ethers.formatUnits(currentBalance, 18)}, Need: ${ethers.formatUnits(requiredAmountWei, 18)}.`, Colors.FgYellow, '⚠️');
-            const price = APPROX_PRICES_IN_PHRS[tokenSymbol];
-            if (!price) throw new Error(`Price for ${tokenSymbol} not defined, cannot perform auto-swap.`);
-            const estimatedPharsNeeded = deficitFloat / price;
-            const phrsToSwapFloat = Math.max(estimatedPharsNeeded * 1.2, parseFloat(MINIMUM_LP_TOP_UP_SWAP));
+            let decimals = 18;
+            if ((tokenSymbol === 'USDC' || tokenSymbol === 'USDT') && dexName.toUpperCase() === 'FAROSWAP') {
+                decimals = 6;
+            }
+            const deficitFloat = parseFloat(ethers.formatUnits(deficit, decimals));
+            log('LIQUIDITY', `[${dexName}] Insufficient ${tokenSymbol} balance. Have: ${ethers.formatUnits(currentBalance, decimals)}, Need: ${ethers.formatUnits(requiredAmountWei, decimals)}.`, Colors.FgYellow, '⚠️');
             
-            const phrsToSwapString = phrsToSwapFloat.toFixed(18);
+            const phrsToSwapString = MINIMUM_LP_TOP_UP_SWAP;
             await this.#doTopUpSwap(dexName, tokenSymbol, phrsToSwapString);
             
             const maxPollRetries = 12; 
@@ -381,7 +381,7 @@ class AccountProcessor {
                 await new Promise(r => setTimeout(r, 10000));
                 const newBalance = await tokenContract.balanceOf(this.address);
                 if (newBalance >= requiredAmountWei) {
-                    log('LIQUIDITY', `[${dexName}] Top-up successful. New ${tokenSymbol} balance: ${ethers.formatUnits(newBalance, 18)}`, Colors.FgGreen, '✅');
+                    log('LIQUIDITY', `[${dexName}] Top-up successful. New ${tokenSymbol} balance: ${ethers.formatUnits(newBalance, decimals)}`, Colors.FgGreen, '✅');
                     return true;
                 }
                 log('LIQUIDITY', `[${dexName}] Waiting for balance to update... (Attempt ${i + 1}/${maxPollRetries})`, Colors.FgDim, '⏳');
@@ -611,16 +611,15 @@ class AccountProcessor {
                 const quoteDecimals = (quoteToken === 'USDC' || quoteToken === 'USDT') ? 6 : 18;
                 const baseAmountInWei = ethers.parseUnits(baseAmount.toString(), baseDecimals);
                 const quoteAmountInWei = ethers.parseUnits(quoteAmount.toString(), quoteDecimals);
-                const baseTokenContract = new ethers.Contract(baseTokenAddress, BaseERC20_ABI, this.provider);
-                const currentBaseBalance = await baseTokenContract.balanceOf(this.address);
-                if (currentBaseBalance < baseAmountInWei) {
-                    throw new Error(`Insufficient ${baseToken} balance. Have: ${ethers.formatUnits(currentBaseBalance, baseDecimals)}, Need: ${ethers.formatUnits(baseAmountInWei, baseDecimals)}`);
-                }
 
-                const quoteTokenContract = new ethers.Contract(quoteTokenAddress, BaseERC20_ABI, this.provider);
-                const currentQuoteBalance = await quoteTokenContract.balanceOf(this.address);
-                if (currentQuoteBalance < quoteAmountInWei) {
-                    throw new Error(`Insufficient ${quoteToken} balance. Have: ${ethers.formatUnits(currentQuoteBalance, quoteDecimals)}, Need: ${ethers.formatUnits(quoteAmountInWei, quoteDecimals)}`);
+                const hasBaseToken = await this.#ensureTokenBalance(baseToken, baseAmountInWei, 'Faroswap');
+                if (!hasBaseToken) {
+                    throw new Error(`Could not ensure sufficient ${baseToken} balance for LP.`);
+                }
+        
+                const hasQuoteToken = await this.#ensureTokenBalance(quoteToken, quoteAmountInWei, 'Faroswap');
+                if (!hasQuoteToken) {
+                    throw new Error(`Could not ensure sufficient ${quoteToken} balance for LP.`);
                 }
 
                 await this.#approveToken(baseTokenAddress, DVM_ROUTER_ADDRESS, baseAmountInWei, baseToken, 'Faro');
@@ -863,28 +862,44 @@ class AccountProcessor {
 
     async batchZentrafiUnwrap() {
         const { zentrafiParams, minDelayMs, maxDelayMs } = this.operationParams;
-        if (!zentrafiParams || !zentrafiParams.unwrapOps || zentrafiParams.unwrapOps <= 0) return;
+        if (!zentrafiParams || !zentrafiParams.unwrapOps || zentrafiParams.unwrapOps <= 0 || !zentrafiParams.unwrapAmount) return;
         
-        log('ZENTRAFI', `Starting Unwrap task: ${zentrafiParams.unwrapOps} operations...`, Colors.Bright, '-');
+        log('ZENTRAFI', `Starting Unwrap task: ${zentrafiParams.unwrapOps} operations of ${zentrafiParams.unwrapAmount} WPHRS each...`, Colors.Bright, '-');
         
+        const amountToUnwrapWei = ethers.parseEther(zentrafiParams.unwrapAmount);
+    
         for (let i = 0; i < zentrafiParams.unwrapOps; i++) {
-            const description = `Unwrap WPHRS on Zentra #${i+1}`;
+            const description = `Unwrap ${zentrafiParams.unwrapAmount} WPHRS on Zentra #${i+1}`;
             log('ZENTRAFI', description, Colors.FgMagenta, '➕');
             try {
-                const wphrsContract = new ethers.Contract(ZENTRAFI_CONFIGS.WPHRS_ADDRESS, ZENTRAFI_CONFIGS.WPHRS_ABI, this.wallet);
-                const wphrsBalance = await new ethers.Contract(ZENTRAFI_CONFIGS.WPHRS_ADDRESS, BaseERC20_ABI, this.provider).balanceOf(this.address);
-                
-                if (wphrsBalance === 0n) {
-                    log('ZENTRAFI', '[SKIP] No WPHRS to unwrap.', Colors.FgYellow, '⚠️');
-                    break;
+                const wphrsTokenContract = new ethers.Contract(ZENTRAFI_CONFIGS.WPHRS_ADDRESS, BaseERC20_ABI, this.provider);
+                let currentBalance = await wphrsTokenContract.balanceOf(this.address);
+    
+                if (currentBalance < amountToUnwrapWei) {
+                    log('ZENTRAFI', `Insufficient WPHRS balance. Have: ${ethers.formatEther(currentBalance)}, Need: ${zentrafiParams.unwrapAmount}. Attempting to wrap PHRS...`, Colors.FgYellow, '📦');
+    
+                    const neededToWrap = amountToUnwrapWei - currentBalance;
+                    const nativeBalance = await this.provider.getBalance(this.address);
+    
+                    if (nativeBalance < neededToWrap) {
+                        log('ZENTRAFI', `[FAIL] Not enough native PHRS to wrap. Have: ${ethers.formatEther(nativeBalance)}, Need: ${ethers.formatEther(neededToWrap)}`, Colors.FgRed, '❌');
+                        break; 
+                    }
+    
+                    const wphrsContractForWrap = new ethers.Contract(ZENTRAFI_CONFIGS.WPHRS_ADDRESS, DEX_CONFIGS.ZENITHSWAP.ERC20_ABI, this.wallet);
+                    const wrapTxData = await wphrsContractForWrap.deposit.populateTransaction({ value: neededToWrap });
+                    await this.#executeTx(wrapTxData, `Wrap ${ethers.formatEther(neededToWrap)} PHRS for Zentra`);
                 }
-                
-                const txData = await wphrsContract.withdraw.populateTransaction(wphrsBalance);
+
+                const wphrsContract = new ethers.Contract(ZENTRAFI_CONFIGS.WPHRS_ADDRESS, ZENTRAFI_CONFIGS.WPHRS_ABI, this.wallet);
+                const txData = await wphrsContract.withdraw.populateTransaction(amountToUnwrapWei);
                 await this.#executeTx(txData, description);
                 
-                const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
-                log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
-                await new Promise(r => setTimeout(r, randomDelay));
+                if (i < zentrafiParams.unwrapOps - 1) {
+                    const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+                    log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
+                    await new Promise(r => setTimeout(r, randomDelay));
+                }
             } catch (e) {
                 log('ZENTRAFI', `[FAIL] ${description} failed: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
             }
@@ -910,6 +925,9 @@ class AccountProcessor {
     async run() {
         try {
             const { runAutoSend, swapMode, swapParams, lpMode, lpParams, runOpenFi, openFiTasks, runBrokex, brokexTasks, runZentrafi, zentrafiTasks, runGotchipusMint } = this.operationParams;
+            
+            let mintedNftResult = false;
+            
             await showAllBalances(this.address, this.provider);
             const checkinClient = new CheckinClient({ address: this.address, wallet: this.wallet, userAgent: new UserAgent().toString(), proxyAgent: this.proxyAgent }, log);
             await checkinClient.runCheckinForAccount();
@@ -974,22 +992,21 @@ class AccountProcessor {
                 }
                 log('SYSTEM', `--- Finished Zentra Tasks ---`, Colors.Bright, '-');
             }
-
+            
             if (runGotchipusMint) {
-    const mintedAddresses = this.operationParams.mintedKeys || new Set();
-    if (mintedAddresses.has(this.address.toLowerCase())) {
-    log('GOTCHIPUS', `[SKIP] Wallet has already minted.`, Colors.FgYellow, '👍');
-} else {
-        const success = await this.mintGotchipusNft();
-        if (success) {
-            log('ACCOUNT', `Finished all operations for ${this.address}.`, Colors.FgGreen, '✅');
-            return { success: true, address: this.address, mintedNft: true, addressToSave: this.address };
-        }
-    }
-}
+                const mintedAddresses = this.operationParams.mintedGotchipusAddresses || new Set();
+                if (mintedAddresses.has(this.address.toLowerCase())) {
+                    log('GOTCHIPUS', `[SKIP] Wallet has already minted.`, Colors.FgYellow, '👍');
+                } else {
+                    const success = await this.mintGotchipusNft();
+                    if (success) {
+                        mintedNftResult = true;
+                    }
+                }
+            }
             
             log('ACCOUNT', `Finished all operations for ${this.address}.`, Colors.FgGreen, '✅');
-            return { success: true, address: this.address, mintedNft: false };
+            return { success: true, address: this.address, mintedNft: mintedNftResult };
         } catch (error) {
             log('ACCOUNT', `An error occurred during operations for ${this.address}: ${error.message}`, Colors.FgRed, '❌');
             return { success: false, address: this.address, error: error.message };
@@ -1061,24 +1078,24 @@ async function checkAllAccountPoints(accounts, operationParams) {
 }
 
 
-async function processAccountOperation(account, operationParams, mintedKeys) {
+async function processAccountOperation(account, operationParams, mintedGotchipusAddresses) {
     const accountFullAddress = new ethers.Wallet(account.pk).address;
     
-    /*
-    if (operationParams.runGotchipusMint && mintedKeys.has(account.pk)) {
-        log('GOTCHIPUS', `[SKIP] Wallet ${accountFullAddress.slice(0,10)}... has already minted.`, Colors.FgYellow, '👍');
-        return { success: true, address: accountFullAddress, skipped: true };
-    }
-    */
-
     const initialDelay = Math.floor(Math.random() * 5000);
     await new Promise(r => setTimeout(r, initialDelay));
     console.log(`\n${Colors.Bright}--- Wallet: ${accountFullAddress} (starting after ${initialDelay/1000}s delay) ---${Colors.Reset}`);
+    
+    if (account.proxyAgent) {
+        const publicIp = await getPublicIpViaProxy(account.proxyAgent);
+        log('PROXY', `Connected via proxy. Public IP: ${publicIp}`, Colors.FgCyan, '🌐');
+    } else {
+        log('PROXY', 'No proxy configured for this account.', Colors.FgYellow, '⚠️');
+    }
+
     try {
         const provider = await buildFallbackProvider(PHAROS_RPC_URLS, PHAROS_CHAIN_ID, account.proxyAgent, accountFullAddress);
         const accountPools = operationParams.faroPools[account.accountIndex] || {};
-        
-        const paramsWithPools = {...operationParams, faroPools: accountPools, mintedKeys };
+        const paramsWithPools = {...operationParams, faroPools: accountPools, mintedGotchipusAddresses };
 
         const processor = new AccountProcessor(account, paramsWithPools, provider);
         return await processor.run();
@@ -1361,14 +1378,16 @@ async function processAccountOperation(account, operationParams, mintedKeys) {
         }
         
         operationParams.zentrafiTasks = selectedTasks;
-        if (selectedTasks.length > 0) {
-            log('SYSTEM', `Selected Zentra tasks: ${selectedTasks.join(', ')}`, Colors.FgCyan, '👍');
+        if (selectedTasks.includes('unwrap')) {
             const zentrafiParams = {};
-            if (selectedTasks.includes('unwrap')) {
-                const unwrapOps = await askQuestion({ message: `${Colors.FgBlue}[Zentra] How many Unwrap WPHRS operations?: ${Colors.Reset}` });
-                if (isNaN(unwrapOps) || parseInt(unwrapOps) < 0) { log('ERROR', 'Invalid number of operations.', Colors.FgRed, '❌'); process.exit(1); }
-                zentrafiParams.unwrapOps = parseInt(unwrapOps);
-            }
+            const unwrapOps = await askQuestion({ message: `${Colors.FgBlue}[Zentra] How many Unwrap WPHRS operations?: ${Colors.Reset}` });
+            if (isNaN(unwrapOps) || parseInt(unwrapOps) < 0) { log('ERROR', 'Invalid number of operations.', Colors.FgRed, '❌'); process.exit(1); }
+            zentrafiParams.unwrapOps = parseInt(unwrapOps);
+        
+            const unwrapAmount = await askQuestion({ message: `${Colors.FgBlue}[Zentra] Enter WPHRS amount to Unwrap each time: ${Colors.Reset}` });
+            if (isNaN(unwrapAmount) || parseFloat(unwrapAmount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌'); process.exit(1); }
+            zentrafiParams.unwrapAmount = unwrapAmount;
+            
             operationParams.zentrafiParams = zentrafiParams;
         }
     }
@@ -1377,15 +1396,15 @@ async function processAccountOperation(account, operationParams, mintedKeys) {
     const gotchipusAnswer = await askQuestion({ message: gotchipusPrompt });
     operationParams.runGotchipusMint = gotchipusAnswer.trim() === '1';
     
-    let mintedKeys = new Set();
+    let mintedGotchipusAddresses = new Set();
     if (operationParams.runGotchipusMint) {
         try {
-    const data = fs.readFileSync('minted_wallets_gotchipus.txt', 'utf8');
-            mintedKeys = new Set(data.split('\n').map(line => line.trim().toLowerCase()).filter(Boolean));
-    log('CONFIG', `Loaded ${mintedKeys.size} already minted wallets for Gotchipus.`, Colors.FgCyan, '✅');
-} catch (e) {
-    log('WARNING', 'minted_wallets_gotchipus.txt not found. Will create a new one.', Colors.FgYellow, '⚠️');
-}
+            const data = fs.readFileSync('minted_wallets_gotchipus.txt', 'utf8');
+            mintedGotchipusAddresses = new Set(data.split('\n').map(line => line.trim().toLowerCase()).filter(Boolean));
+            log('CONFIG', `Loaded ${mintedGotchipusAddresses.size} already minted wallets for Gotchipus.`, Colors.FgCyan, '✅');
+        } catch (e) {
+            log('WARNING', 'minted_wallets_gotchipus.txt not found. Will create a new one.', Colors.FgYellow, '⚠️');
+        }
     }
     
     log('SYSTEM', 'Configuration saved. These settings will be used for all subsequent daily runs.', Colors.FgGreen, '⚙️');
@@ -1395,18 +1414,18 @@ async function processAccountOperation(account, operationParams, mintedKeys) {
         log('SYSTEM', `--- Starting Daily Run #${runCount} ---`, Colors.Bright, '☀️');
 
         const results = await Promise.all(accountsToProcess.map(account => 
-            processAccountOperation(account, operationParams, mintedKeys).catch(err => {
+            processAccountOperation(account, operationParams, mintedGotchipusAddresses).catch(err => {
                 const address = new ethers.Wallet(account.pk).address;
                 log('SYSTEM', `Caught an unhandled error for account ${address}: ${err.message}`, Colors.FgRed, '🚨');
                 return { success: false, address: address, error: `Unhandled system error: ${err.message}` };
             })
         ));
         for (const res of results) {
-    if (res && res.mintedNft) {
-        await saveMintedAddress(res.addressToSave, 'minted_wallets_gotchipus.txt');
-        mintedKeys.add(res.addressToSave);
-    }
-}
+            if (res && res.mintedNft) {
+                await saveMintedAddress(res.address, 'minted_wallets_gotchipus.txt');
+                mintedGotchipusAddresses.add(res.address.toLowerCase());
+            }
+        }
 
         log('SUMMARY', '\n--- Account Processing Summary ---', Colors.Bright);
         results.forEach(res => { 
@@ -1426,7 +1445,7 @@ async function processAccountOperation(account, operationParams, mintedKeys) {
         
         await checkAllAccountPoints(accountsToProcess, operationParams);
         
-        log('SYSTEM', 'The point summary above is based on the latest API data. You can also check your stats on here: https://pharoshub.xyz/', Colors.Bright, '🎉');
+        log('SYSTEM', 'The point summary above is based on the latest API data. You can also verify your stats on the here: https://pharoshub.xyz/', Colors.Bright, '🎉');
         await runCountdown(DAILY_RUN_INTERVAL_HOURS);
     }
 })();
