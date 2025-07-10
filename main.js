@@ -976,17 +976,17 @@ class AccountProcessor {
             }
 
             if (runGotchipusMint) {
-                const mintedKeys = this.operationParams.mintedKeys || new Set();
-                if (mintedKeys.has(this.pk)) {
-                    log('GOTCHIPUS', `[SKIP] Wallet has already minted.`, Colors.FgYellow, '👍');
-                } else {
-                    const success = await this.mintGotchipusNft();
-                    if (success) {
-                        log('ACCOUNT', `Finished all operations for ${this.address}.`, Colors.FgGreen, '✅');
-                        return { success: true, address: this.address, mintedNft: true, pk: this.pk };
-                    }
-                }
-            }
+    const mintedAddresses = this.operationParams.mintedKeys || new Set();
+    if (mintedAddresses.has(this.address.toLowerCase())) {
+    log('GOTCHIPUS', `[SKIP] Wallet has already minted.`, Colors.FgYellow, '👍');
+} else {
+        const success = await this.mintGotchipusNft();
+        if (success) {
+            log('ACCOUNT', `Finished all operations for ${this.address}.`, Colors.FgGreen, '✅');
+            return { success: true, address: this.address, mintedNft: true, addressToSave: this.address };
+        }
+    }
+}
             
             log('ACCOUNT', `Finished all operations for ${this.address}.`, Colors.FgGreen, '✅');
             return { success: true, address: this.address, mintedNft: false };
@@ -997,11 +997,11 @@ class AccountProcessor {
     }
 }
 
-async function saveMintedKey(pk, filename) {
+async function saveMintedAddress(address, filename) {
     try {
-        await fsp.appendFile(filename, `${pk}\n`);
+        await fsp.appendFile(filename, `${address}\n`);
     } catch (e) {
-        log('SYSTEM', `Failed to save minted key to ${filename}: ${e.message}`, Colors.FgRed, '❌');
+        log('SYSTEM', `Failed to save minted address to ${filename}: ${e.message}`, Colors.FgRed, '❌');
     }
 }
 
@@ -1064,7 +1064,6 @@ async function checkAllAccountPoints(accounts, operationParams) {
 async function processAccountOperation(account, operationParams, mintedKeys) {
     const accountFullAddress = new ethers.Wallet(account.pk).address;
     
-    // ## PERBAIKAN 1: Menghapus blok pengecekan Gotchipus dari sini ##
     /*
     if (operationParams.runGotchipusMint && mintedKeys.has(account.pk)) {
         log('GOTCHIPUS', `[SKIP] Wallet ${accountFullAddress.slice(0,10)}... has already minted.`, Colors.FgYellow, '👍');
@@ -1079,7 +1078,6 @@ async function processAccountOperation(account, operationParams, mintedKeys) {
         const provider = await buildFallbackProvider(PHAROS_RPC_URLS, PHAROS_CHAIN_ID, account.proxyAgent, accountFullAddress);
         const accountPools = operationParams.faroPools[account.accountIndex] || {};
         
-        // ## PERBAIKAN 2: Memasukkan `mintedKeys` ke dalam parameter untuk processor ##
         const paramsWithPools = {...operationParams, faroPools: accountPools, mintedKeys };
 
         const processor = new AccountProcessor(account, paramsWithPools, provider);
@@ -1382,12 +1380,12 @@ async function processAccountOperation(account, operationParams, mintedKeys) {
     let mintedKeys = new Set();
     if (operationParams.runGotchipusMint) {
         try {
-            const data = fs.readFileSync('minted_gotchipus.txt', 'utf8');
-            mintedKeys = new Set(data.split('\n').map(line => line.trim()).filter(Boolean));
-            log('CONFIG', `Loaded ${mintedKeys.size} already minted wallets for Gotchipus.`, Colors.FgCyan, '✅');
-        } catch (e) {
-            log('WARNING', 'minted_gotchipus.txt not found. Will create a new one.', Colors.FgYellow, '⚠️');
-        }
+    const data = fs.readFileSync('minted_wallets_gotchipus.txt', 'utf8');
+            mintedKeys = new Set(data.split('\n').map(line => line.trim().toLowerCase()).filter(Boolean));
+    log('CONFIG', `Loaded ${mintedKeys.size} already minted wallets for Gotchipus.`, Colors.FgCyan, '✅');
+} catch (e) {
+    log('WARNING', 'minted_wallets_gotchipus.txt not found. Will create a new one.', Colors.FgYellow, '⚠️');
+}
     }
     
     log('SYSTEM', 'Configuration saved. These settings will be used for all subsequent daily runs.', Colors.FgGreen, '⚙️');
@@ -1404,11 +1402,11 @@ async function processAccountOperation(account, operationParams, mintedKeys) {
             })
         ));
         for (const res of results) {
-            if (res && res.mintedNft) {
-                await saveMintedKey(res.pk, 'minted_gotchipus.txt');
-                mintedKeys.add(res.pk);
-            }
-        }
+    if (res && res.mintedNft) {
+        await saveMintedAddress(res.addressToSave, 'minted_wallets_gotchipus.txt');
+        mintedKeys.add(res.addressToSave);
+    }
+}
 
         log('SUMMARY', '\n--- Account Processing Summary ---', Colors.Bright);
         results.forEach(res => { 
@@ -1428,7 +1426,7 @@ async function processAccountOperation(account, operationParams, mintedKeys) {
         
         await checkAllAccountPoints(accountsToProcess, operationParams);
         
-        log('SYSTEM', 'The point summary above is based on the latest API data. You can also verify your stats on the here: https://pharoshub.xyz/', Colors.Bright, '🎉');
+        log('SYSTEM', 'The point summary above is based on the latest API data. You can also check your stats on here: https://pharoshub.xyz/', Colors.Bright, '🎉');
         await runCountdown(DAILY_RUN_INTERVAL_HOURS);
     }
 })();
