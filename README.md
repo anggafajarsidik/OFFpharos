@@ -79,9 +79,9 @@ This bot is packed with features to automate a wide range of activities across t
     * `proxy.txt`
         > One proxy URL per line in `http://user:pass@host:port` format. **The order must correspond to the private keys**. Leave a line blank if an account does not use a proxy.
         > ```
-        > [http://user1:pass1@proxy1.com:8080](http://user1:pass1@proxy1.com:8080)
+        > http://user1:pass1@proxy1.com:8080
         >
-        > [http://user3:pass3@proxy3.com:8080](http://user3:pass3@proxy3.com:8080)
+        > http://user3:pass3@proxy3.com:8080
         > ```
 
     * `wallets.txt`
