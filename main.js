@@ -1103,13 +1103,13 @@ log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
 
             for (let i = 0; i < regPerKey; i++) {
                 const domainName = await this.#generateRandomDomainName();
-                log('PNS-DOMAIN', `Registering domain #${i + 1}/${regPerKey}: ${domainName}.pharos`, Colors.FgMagenta, '📝');
+                log('PNS-DOMAIN', `Registering domain #${i + 1}/${regPerKey}: ${domainName}.phrs`, Colors.FgMagenta, '📝');
                 const SECRET = '0x' + randomBytes(32).toString('hex');
 
                 const commitment = await controllerContract.makeCommitment(
                     domainName, this.address, duration, SECRET, resolverAddress, dataArray, reverseRecord, ownerControlledFuses
                 );
-                await this.#executeTx(await controllerContract.commit.populateTransaction(commitment), `PNS Commit for ${domainName}.pharos`);
+                await this.#executeTx(await controllerContract.commit.populateTransaction(commitment), `PNS Commit for ${domainName}.phrs`);
 
                 log('PNS-DOMAIN', `Waiting 60 seconds for commitment age...`, Colors.FgDim, '⏳');
                 await new Promise(r => setTimeout(r, 60000));
@@ -1120,9 +1120,9 @@ log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
                 await this.#executeTx(await controllerContract.register.populateTransaction(
                     domainName, this.address, duration, SECRET, resolverAddress, dataArray, reverseRecord, ownerControlledFuses,
                     { value }
-                ), `PNS Register ${domainName}.pharos`);
+                ), `PNS Register ${domainName}.phrs`);
 
-                log('PNS-DOMAIN', `Domain ${domainName}.pharos registered successfully.`, Colors.FgGreen, '✅');
+                log('PNS-DOMAIN', `Domain ${domainName}.phrs registered successfully.`, Colors.FgGreen, '✅');
 
                 if (i < regPerKey - 1) {
                     const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
