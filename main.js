@@ -12,7 +12,6 @@ import process from 'process';
 import { FaucetClient } from './faucetservice.js';
 import { CheckinClient } from './checkinservice.js';
 import { randomBytes } from 'crypto';
-
 import { adjectives, nouns } from './randomNamesList.js';
 import { TO_ADDRESS, CLAIM_ABI } from './configmint.js';
 
