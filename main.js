@@ -12,12 +12,6 @@ import process from 'process';
 import { FaucetClient } from './faucetservice.js';
 import { CheckinClient } from './checkinservice.js';
 
-import { TO_ADDRESS as GRANDLINE_NFT_ADDRESS, CLAIM_ABI as GRANDLINE_NFT_ABI } from './configmint.js';
-
-import { randomBytes } from 'crypto';
-import { adjectives, nouns } from './randomNamesList.js';
-
-
 dotenv.config();
 
 const GAS_FEE_MULTIPLIER = 2.5;
@@ -52,7 +46,7 @@ const DEX_CONFIGS = {
         },
         FEE: 500,
         ROUTER_ABI: [{"inputs":[{"components":[{"internalType":"address","name":"tokenIn","type":"address"},{"internalType":"address","name":"tokenOut","type":"address"},{"internalType":"uint24","name":"fee","type":"uint24"},{"internalType":"address","name":"recipient","type":"address"},{"internalType":"uint256","name":"amountIn","type":"uint256"},{"internalType":"uint256","name":"amountOutMinimum","type":"uint256"},{"internalType":"uint160","name":"sqrtPriceLimitX96","type":"uint160"}],"internalType":"struct IV3SwapRouter.ExactInputSingleParams","name":"params","type":"tuple"}],"name":"exactInputSingle","outputs":[{"internalType":"uint256","name":"amountOut","type":"uint256"}],"stateMutability":"payable","type":"function"}],
-        ERC20_ABI: ["function approve(address spender, uint256 amount) external returns (bool)","function allowance(address owner, uint256 spender) external view returns (uint256)","function balanceOf(address owner) view returns (uint256)","function deposit() payable", "function decimals() view returns (uint8)", "function symbol() view returns (string)"],
+        ERC20_ABI: ["function approve(address spender, uint256 amount) external returns (bool)","function allowance(address owner, address spender) external view returns (uint256)","function balanceOf(address owner) view returns (uint256)","function deposit() payable", "function decimals() view returns (uint8)", "function symbol() view returns (string)"],
     }
 };
 const POSITION_MANAGER_ADDRESS = "0xF8a1D4FF0f9b9Af7CE58E1fc1833688F3BFd6115";
@@ -95,7 +89,7 @@ const OPENFI_CONFIGS = {
         NVIDIA: { address: "0x3299cc551B2a39926Bf14144e65630e533dF6944", decimals: 18 },
     },
     MINT_ABI: [{"type":"function","name":"mint","inputs":[{"internalType":"address","name":"_asset","type":"address"},{"internalType":"address","name":"_account","type":"address"},{"internalType":"uint256","name":"_amount","type":"uint256"}],"outputs":[],"stateMutability":"nonpayable"}],
-    LENDING_ABI: [{"type":"function","name":"depositETH","inputs":[{"name":"lendingPool","type":"address"},{"name":"onBehalfOf","type":"address"},{"name":"referralCode","type":"uint16"}],"outputs":[],"stateMutability":"payable"},{"type":"function","name":"supply","inputs":[{"name":"asset","type":"address"},{"name":"amount","type":"uint256"},{"name":"onBehalfOf","type":"address"},{"name":"referralCode","type":"uint16"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"borrow","inputs":[{"name":"asset","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"uint256","name":"interestRateMode","type":"uint256"},{"name":"referralCode","type":"uint16"},{"name":"onBehalfOf","type":"address"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"withdraw","inputs":[{"name":"asset","name":"amount"},{"name":"to","type":"address"}],"outputs":[],"stateMutability":"nonpayable"}]
+    LENDING_ABI: [{"type":"function","name":"depositETH","inputs":[{"name":"lendingPool","type":"address"},{"name":"onBehalfOf","type":"address"},{"name":"referralCode","type":"uint16"}],"outputs":[],"stateMutability":"payable"},{"type":"function","name":"supply","inputs":[{"name":"asset","type":"address"},{"name":"amount","type":"uint256"},{"name":"onBehalfOf","type":"address"},{"name":"referralCode","type":"uint16"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"borrow","inputs":[{"name":"asset","type":"address"},{"name":"amount","type":"uint256"},{"name":"interestRateMode","type":"uint256"},{"name":"referralCode","type":"uint16"},{"name":"onBehalfOf","type":"address"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"withdraw","inputs":[{"name":"asset","type":"address"},{"name":"amount","type":"uint256"},{"name":"to","type":"address"}],"outputs":[],"stateMutability":"nonpayable"}]
 };
 const BROKEX_CONFIGS = {
     USDT_ADDRESS: "0x78ac5e2d8a78a8b8e6d10c7b7274b03c10c91cef",
@@ -117,116 +111,17 @@ const GOTCHIPUS_CONFIGS = {
     MINT_FUNCTION_SELECTOR: "0x5b70ea9f"
 };
 
-const GRANDLINE_NFT_CONSTANTS = {
-    CONTRACT_ADDRESS: GRANDLINE_NFT_ADDRESS,
-    CLAIM_ABI: GRANDLINE_NFT_ABI,
-    CURRENCY_ADDRESS: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
-};
-
-const PNS_CONFIGS = {
-    CONTROLLER_ADDRESS: "0x51be1ef20a1fd5179419738fc71d95a8b6f8a175",
-    DURATION: 31536000,
-    RESOLVER: "0x9a43dcA1C3BB268546b98eb2AB1401bFc5b58505",
-    DATA: [],
-    REVERSE_RECORD: true,
-    OWNER_CONTROLLED_FUSES: 0,
-};
-
-
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const Colors = { Reset: "\x1b[0m", Bright: "\x1b[1m", FgRed: "\x1b[31m", FgGreen: "\x1b[32m", FgYellow: "\x1b[33m", FgBlue: "\x1b[34m", FgMagenta: "\x1b[35m", FgCyan: "\x1b[36m", FgDim: "\x1b[2m"};
 function log(prefix, message, color = Colors.Reset, symbol = '➡️') { const timestamp = new Date().toLocaleTimeString(); console.log(`${color}${symbol} [${timestamp}] ${prefix}: ${message}${Colors.Reset}`); }
 function getRandomNumber(min, max, decimals = 4) { return (Math.random() * (max - min) + min).toFixed(decimals); }
 function getRandomElement(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-async function askQuestion(promptOptions) {
-    const isWindows = process.platform === 'win32';
-    if (isWindows && process.stdin.isTTY) { process.stdin.setRawMode(true); }
-    return new Promise(resolve => {
-        const sigintHandler = () => { log('SYSTEM', 'Ctrl+C detected during input. Exiting script...', Colors.FgYellow, '⚠️'); rl.removeListener('SIGINT', sigintHandler); if (isWindows && process.stdin.isTTY) process.stdin.setRawMode(false); rl.close(); process.exit(1); };
-        rl.on('SIGINT', sigintHandler);
-        rl.question(promptOptions.message, (answer) => {
-            if (isWindows && process.stdin.isTTY) process.stdin.setRawMode(false);
-            rl.removeListener('SIGINT', sigintHandler);
-            resolve(answer);
-        });
-    });
-}
-async function getPublicIpViaProxy(proxyAgent) {
-    try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 3000);
-        const res = await fetch('http://api.ipify.org', { agent: proxyAgent, signal: controller.signal });
-        clearTimeout(timeout);
-        if (!res.ok) throw new Error(`Failed to fetch IP: ${res.statusText}`);
-        return (await res.text()).trim();
-    } catch (error) {
-        return `Error fetching IP: ${error.message}`;
-    }
-}
-async function showAllBalances(walletAddress, provider) {
-    log('BALANCES', `For ${walletAddress}:`, Colors.FgCyan, '💰');
-    let balanceDetails = [];
-    try {
-        const native = await provider.getBalance(walletAddress);
-        balanceDetails.push(`PHRS (native): ${ethers.formatEther(native)}`);
-    } catch (err) {
-        balanceDetails.push(`PHRS (native): Error fetching`);
-    }
-    for (const [dex, config] of Object.entries(DEX_CONFIGS)) {
-        for (const [symbol, tokenAddr] of Object.entries(config.TOKENS)) {
-            if (symbol === 'PHRS') continue;
-            const contract = new ethers.Contract(tokenAddr, BaseERC20_ABI, provider);
-            try {
-                const balance = await contract.balanceOf(walletAddress);
-                let decimals = 18;
-                if ((symbol === 'USDC' || symbol === 'USDT') && dex === 'FAROSWAP') {
-                    decimals = 6;
-                }
-                balanceDetails.push(`${symbol} (${dex.replace('SWAP', '')}): ${ethers.formatUnits(balance, decimals)}`);
-            } catch (e) {}
-        }
-    }
-    log('BALANCES', balanceDetails.join(' | '), Colors.FgCyan, '✨');
-}
-async function fetchWithTimeout(url, timeout = 10000, agent = null) {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-    try {
-        const res = await fetch(url, { signal: controller.signal, agent: agent });
-        clearTimeout(id);
-        return res;
-    } catch (err) {
-        throw new Error('Timeout or network error');
-    }
-}
-async function robustFetchDodoRoute(url, agent = null, accountFullAddress = '') {
-    for (let i = 0; i < 5; i++) {
-        try {
-            const res = await fetchWithTimeout(url, 15000, agent);
-            const data = await res.json();
-            if (data.status !== -1) return data;
-            log('DODO API', `Retry ${i + 1} failed for ${accountFullAddress} (status -1).`, Colors.FgYellow, '⚠️');
-        } catch (e) {
-            log('DODO API', `Retry ${i + 1} failed for ${accountFullAddress}: ${e.message}`, Colors.FgYellow, '⚠️');
-        }
-        await new Promise(r => setTimeout(r, 2000));
-    }
-    throw new Error('DODO API permanently failed after 5 retries.');
-}
-async function fetchDodoRoute(fromAddr, toAddr, userAddr, amountWei, agent = null) {
-    const deadline = Math.floor(Date.now() / 1000) + 600;
-    const url = `https://api.dodoex.io/route-service/v2/widget/getdodoroute?chainId=${PHAROS_CHAIN_ID}&deadLine=${deadline}&apikey=a37546505892e1a952&slippage=50&source=dodoV2AndMixWasm&toTokenAddress=${toAddr}&fromTokenAddress=${fromAddr}&userAddr=${userAddr}&estimateGas=true&fromAmount=${amountWei}`;
-    log('DODO API', `Requesting route for ${userAddr}...`, Colors.FgBlue, '🌐');
-    try {
-        const result = await robustFetchDodoRoute(url, agent, userAddr);
-        log('DODO API', `Route info fetched successfully for ${userAddr}.`, Colors.FgGreen, '🧭');
-        return result.data;
-    }
-    catch (err) {
-        log('DODO API', `Failed to fetch route for ${userAddr}: ${err.message}`, Colors.FgRed, '❌');
-        throw err;
-    }
-}
+async function askQuestion(promptOptions) { const isWindows = process.platform === 'win32'; if (isWindows && process.stdin.isTTY) { process.stdin.setRawMode(true); } return new Promise(resolve => { const sigintHandler = () => { log('SYSTEM', 'Ctrl+C detected during input. Exiting script...', Colors.FgYellow, '⚠️'); rl.removeListener('SIGINT', sigintHandler); if (isWindows && process.stdin.isTTY) process.stdin.setRawMode(false); rl.close(); process.exit(1); }; rl.on('SIGINT', sigintHandler); rl.question(promptOptions.message, (answer) => { if (isWindows && process.stdin.isTTY) process.stdin.setRawMode(false); rl.removeListener('SIGINT', sigintHandler); resolve(answer); }); }); }
+async function getPublicIpViaProxy(proxyAgent) { try { const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 3000); const res = await fetch('http://api.ipify.org', { agent: proxyAgent, signal: controller.signal }); clearTimeout(timeout); if (!res.ok) throw new Error(`Failed to fetch IP: ${res.statusText}`); return (await res.text()).trim(); } catch (error) { return `Error fetching IP: ${error.message}`; } }
+async function showAllBalances(walletAddress, provider) { log('BALANCES', `For ${walletAddress}:`, Colors.FgCyan, '💰'); let balanceDetails = []; try { const native = await provider.getBalance(walletAddress); balanceDetails.push(`PHRS (native): ${ethers.formatEther(native)}`); } catch (err) { balanceDetails.push(`PHRS (native): Error fetching`); } for (const [dex, config] of Object.entries(DEX_CONFIGS)) { for (const [symbol, tokenAddr] of Object.entries(config.TOKENS)) { if (symbol === 'PHRS') continue; const contract = new ethers.Contract(tokenAddr, BaseERC20_ABI, provider); try { const balance = await contract.balanceOf(walletAddress); let decimals = 18; if ((symbol === 'USDC' || symbol === 'USDT') && dex === 'FAROSWAP') { decimals = 6; } balanceDetails.push(`${symbol} (${dex.replace('SWAP', '')}): ${ethers.formatUnits(balance, decimals)}`); } catch (e) {} } } log('BALANCES', balanceDetails.join(' | '), Colors.FgCyan, '✨'); }
+async function fetchWithTimeout(url, timeout = 10000, agent = null) { const controller = new AbortController(); const id = setTimeout(() => controller.abort(), timeout); try { const res = await fetch(url, { signal: controller.signal, agent: agent }); clearTimeout(id); return res; } catch (err) { throw new Error('Timeout or network error'); } }
+async function robustFetchDodoRoute(url, agent = null, accountFullAddress = '') { for (let i = 0; i < 5; i++) { try { const res = await fetchWithTimeout(url, 15000, agent); const data = await res.json(); if (data.status !== -1) return data; log('DODO API', `Retry ${i + 1} failed for ${accountFullAddress} (status -1).`, Colors.FgYellow, '⚠️'); } catch (e) { log('DODO API', `Retry ${i + 1} failed for ${accountFullAddress}: ${e.message}`, Colors.FgYellow, '⚠️'); } await new Promise(r => setTimeout(r, 2000)); } throw new Error('DODO API permanently failed after 5 retries.'); }
+async function fetchDodoRoute(fromAddr, toAddr, userAddr, amountWei, agent = null) { const deadline = Math.floor(Date.now() / 1000) + 600; const url = `https://api.dodoex.io/route-service/v2/widget/getdodoroute?chainId=${PHAROS_CHAIN_ID}&deadLine=${deadline}&apikey=a37546505892e1a952&slippage=50&source=dodoV2AndMixWasm&toTokenAddress=${toAddr}&fromTokenAddress=${fromAddr}&userAddr=${userAddr}&estimateGas=true&fromAmount=${amountWei}`; log('DODO API', `Requesting route for ${userAddr}...`, Colors.FgBlue, '🌐'); try { const result = await robustFetchDodoRoute(url, agent, userAddr); log('DODO API', `Route info fetched successfully for ${userAddr}.`, Colors.FgGreen, '🧭'); return result.data; } catch (err) { log('DODO API', `Failed to fetch route for ${userAddr}: ${err.message}`, Colors.FgRed, '❌'); throw err; } }
 
 async function runCountdown(hours) {
     const totalSeconds = hours * 3600;
@@ -235,8 +130,8 @@ async function runCountdown(hours) {
     log('SYSTEM', `All tasks complete. Next run scheduled at: ${nextRunTimeWIB} WIB`, Colors.FgGreen, '⏰');
     return new Promise(resolve => {
         const interval = setInterval(() => {
-            const now = new Date();
-            const remaining = Math.round((nextRunTime.getTime() - now.getTime()) / 1000);
+            const now = Date.now();
+            const remaining = Math.round((nextRunTime.getTime() - now) / 1000);
 
             if (remaining <= 0) {
                 clearInterval(interval);
@@ -354,42 +249,9 @@ class AccountProcessor {
         return executeTransaction(this.wallet, txRequest, description);
     }
 
-    async #api_request({ endpoint, method = 'post' }) {
-        const userAgent = new UserAgent();
-        const options = { method: method, headers: { 'User-Agent': userAgent.toString(), 'Referer': 'https://testnet.pharosnetwork.xyz/', 'Origin': 'https://testnet.pharosnetwork.xyz' }, agent: this.proxyAgent, };
-        if (this.authToken) { options.headers['Authorization'] = `Bearer ${this.authToken}`; }
-        try { const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-            if (!response.ok) { return null; }
-            return response.json();
-        } catch (e) { return null; }
-    }
-    async #login() {
-        const signature = await this.wallet.signMessage("pharos");
-        const endpoint = `/user/login?address=${this.address}&signature=${signature}&invite_code=`;
-        const data = await this.#api_request({ endpoint, method: 'post' });
-        if (data && data.data && data.data.jwt) {
-            this.authToken = data.data.jwt;
-            return true;
-        }
-        return false;
-    }
-    async handleVerifyTaskWithHash({ taskId, txHash }) {
-        log('VERIFY', `Verifying task ${taskId} with hash ${txHash.slice(0,10)}...`, Colors.FgBlue, '🔍');
-        if (!this.authToken) {
-            const loggedIn = await this.#login();
-            if (!loggedIn) {
-                log('VERIFY', 'Verification failed: Could not log in.', Colors.FgRed, '❌');
-                return;
-            }
-        }
-        const endpoint = `/task/verify?address=${this.address}&task_id=${taskId}&tx_hash=${txHash}`;
-        const data = await this.#api_request({ endpoint });
-        if (data && data.code === 0) {
-            log('VERIFY', `Task ${taskId} verification successful.`, Colors.FgGreen, '✅');
-        } else {
-            log('VERIFY', `Task ${taskId} verification failed: ${data?.msg || 'Unknown error'}`, Colors.FgYellow, '⚠️');
-        }
-    }
+    async #api_request({ endpoint, method = 'post' }) { const userAgent = new UserAgent(); const options = { method: method, headers: { 'User-Agent': userAgent.toString(), 'Referer': 'https://testnet.pharosnetwork.xyz/', 'Origin': 'https://testnet.pharosnetwork.xyz' }, agent: this.proxyAgent, }; if (this.authToken) { options.headers['Authorization'] = `Bearer ${this.authToken}`; } try { const response = await fetch(`${API_BASE_URL}${endpoint}`, options); if (!response.ok) { return null; } return response.json(); } catch (e) { return null; } }
+    async #login() { const signature = await this.wallet.signMessage("pharos"); const endpoint = `/user/login?address=${this.address}&signature=${signature}&invite_code=`; const data = await this.#api_request({ endpoint, method: 'post' }); if (data && data.data && data.data.jwt) { this.authToken = data.data.jwt; return true; } return false; }
+    async handleVerifyTaskWithHash({ taskId, txHash }) { log('VERIFY', `Verifying task ${taskId} with hash ${txHash.slice(0,10)}...`, Colors.FgBlue, '🔍'); if (!this.authToken) { const loggedIn = await this.#login(); if (!loggedIn) { log('VERIFY', 'Verification failed: Could not log in.', Colors.FgRed, '❌'); return; } } const endpoint = `/task/verify?address=${this.address}&task_id=${taskId}&tx_hash=${txHash}`; const data = await this.#api_request({ endpoint }); if (data && data.code === 0) { log('VERIFY', `Task ${taskId} verification successful.`, Colors.FgGreen, '✅'); } else { log('VERIFY', `Task ${taskId} verification failed: ${data?.msg || 'Unknown error'}`, Colors.FgYellow, '⚠️'); } }
 
     async runAutoSend() {
         const { settings, recipientAddresses, minDelayMs, maxDelayMs } = this.operationParams;
@@ -425,15 +287,14 @@ class AccountProcessor {
         for (let i = 0; i < targetRecipients.length; i++) {
             const recipient = targetRecipients[i];
             try {
-                let amount = getRandomNumber(settings.AMOUNT_SEND[0], settings.AMOUNT_SEND[1], 5);
-                log('AUTO-SEND', `[${i + 1}/${targetRecipients.length}] Preparing to send ${amount} PHRS to ${recipient.slice(0, 8)}...`, Colors.FgMagenta, '📤');
-                const txRequest = { to: recipient, value: ethers.parseEther(amount.toString()) };
-                
-                const receipt = await this.#executeTx(txRequest, `Send ${amount} PHRS`);
-                if (receipt) {
-                    // Transaction confirmed
-                }
-            } catch (e) {
+    let amount = getRandomNumber(settings.AMOUNT_SEND[0], settings.AMOUNT_SEND[1], 5);
+    log('AUTO-SEND', `[${i + 1}/${targetRecipients.length}] Preparing to send ${amount} PHRS to ${recipient.slice(0, 8)}...`, Colors.FgMagenta, '📤');
+    const txRequest = { to: recipient, value: ethers.parseEther(amount.toString()) };
+    
+    const receipt = await this.#executeTx(txRequest, `Send ${amount} PHRS`);
+    if (receipt) {
+    }
+} catch (e) {
                 log('AUTO-SEND', `Send transaction to ${recipient.slice(0,8)} failed: ${e.message}`, Colors.FgRed, '❌');
                 if (e.message.includes('insufficient funds')) {
                     log('AUTO-SEND', 'Stopping due to insufficient funds.', Colors.FgRed, '🛑');
@@ -476,7 +337,8 @@ class AccountProcessor {
                 const params = { tokenIn: tokenInAddress, tokenOut: tokenOutAddress, fee: FEE, recipient: this.address, amountIn, amountOutMinimum: 0, sqrtPriceLimitX96: 0 };
                 const swapRouterContract = new ethers.Contract(ROUTER_ADDRESS, ROUTER_ABI, this.wallet);
                 const swapTxData = await swapRouterContract.exactInputSingle.populateTransaction(params);
-                await this.#executeTx(txData, `Swap ${amountPh_rsToSwapStr} WPHRS to ${tokenToGet} (Zenith Top-Up)`);
+                await this.#executeTx(swapTxData, `Swap ${amountPh_rsToSwapStr} WPHRS to ${tokenToGet} (Zenith Top-Up)`);
+
             } else { 
                 const fromTokenAddress = DEX_CONFIGS.FAROSWAP.TOKENS.PHRS;
                 const toTokenAddress = DEX_CONFIGS.FAROSWAP.TOKENS[tokenToGet];
@@ -508,6 +370,7 @@ class AccountProcessor {
             if ((tokenSymbol === 'USDC' || tokenSymbol === 'USDT') && dexName.toUpperCase() === 'FAROSWAP') {
                 decimals = 6;
             }
+            const deficitFloat = parseFloat(ethers.formatUnits(deficit, decimals));
             log('LIQUIDITY', `[${dexName}] Insufficient ${tokenSymbol} balance. Have: ${ethers.formatUnits(currentBalance, decimals)}, Need: ${ethers.formatUnits(requiredAmountWei, decimals)}.`, Colors.FgYellow, '⚠️');
             
             const phrsToSwapString = MINIMUM_LP_TOP_UP_SWAP;
@@ -582,9 +445,9 @@ class AccountProcessor {
                         log('SWAP', `[Zenithswap] Not enough WPHRS. Wrapping...`, Colors.FgYellow, '📦');
                         const needed = amountIn - wphrsBalance;
                         const nativeBalance = await this.provider.getBalance(this.address);
-                        if (nativeBalance < needed) throw new Error(`Insufficient native PHRS to wrap for liquidity. Needed: ${ethers.formatEther(needed)}`);
-                        const txData = await wphrsContract.deposit.populateTransaction({ value: needed });
-                        await this.#executeTx(txData, `Wrap ${ethers.formatEther(needed)} PHRS for Zenith LP`);
+                        if (nativeBalance < needed) throw new Error(`Not enough native PHRS to wrap. Needed: ${ethers.formatEther(needed)}`);
+                        const txData = await tokenInContract.deposit.populateTransaction({ value: needed });
+                        await this.#executeTx(txData, `Wrap ${ethers.formatEther(needed)} PHRS (Zenith)`);
                     }
                 }
                 
@@ -683,7 +546,7 @@ class AccountProcessor {
                     const amountToWrap = (token0 === 'WPHRS') ? amount0Desired : amount1Desired;
                     const wphrsBalance = await wphrsContract.balanceOf(this.address);
                     if (wphrsBalance < amountToWrap) {
-                        log('LIQUIDITY', `[Zenithswap] Not enough WPHRS. Wrapping...`, Colors.FgYellow, '📦');
+                        log('LIQUIDITY', `[Zenithswap] Not enough WPHRS. Wrapping native PHRS...`, Colors.FgYellow, '📦');
                         const needed = amountToWrap - wphrsBalance;
                         const nativeBalance = await this.provider.getBalance(this.address);
                         if (nativeBalance < needed) {
@@ -730,7 +593,6 @@ class AccountProcessor {
     async batchAddLiquidityFaro() {
         const { lpParams, minDelayMs, maxDelayMs, faroPools } = this.operationParams;
         if (!lpParams || !lpParams.FAROSWAP || !faroPools) return;
-       
         const { baseToken, quoteToken, baseAmount, quoteAmount, count } = lpParams.FAROSWAP;
         const baseTokenAddress = DEX_CONFIGS.FAROSWAP.TOKENS[baseToken];
         const quoteTokenAddress = DEX_CONFIGS.FAROSWAP.TOKENS[quoteToken];
@@ -788,6 +650,7 @@ class AccountProcessor {
             }
         }
     }
+
     async batchMintOpenFi() {
         log('OPENFI-MINT', `Starting Faucet Minting task...`, Colors.Bright, '💧');
         const assetsToMint = Object.entries(OPENFI_CONFIGS.ASSETS).filter(([symbol]) => symbol !== 'WPHRS');
@@ -818,17 +681,23 @@ class AccountProcessor {
     }
 
     async depositOpenFi() {
-        log('OPENFI-DEPOSIT', `Starting Deposit task: ${this.operationParams.openFiAmounts.deposit} PHRS...`, Colors.Bright, '📥');
+        const { openFiAmounts } = this.operationParams;
+        if (!openFiAmounts || !openFiAmounts.deposit) {
+            log('OPENFI-DEPOSIT', `Deposit amount not configured. Skipping.`, Colors.FgYellow, '⚠️');
+            return;
+        }
+        const amount = openFiAmounts.deposit;
+        log('OPENFI-DEPOSIT', `Starting Deposit task: ${amount} PHRS...`, Colors.Bright, '📥');
         
         try {
-            const amountWei = ethers.parseEther(this.operationParams.openFiAmounts.deposit.toString());
+            const amountWei = ethers.parseEther(amount.toString());
             const lendingContract = new ethers.Contract(OPENFI_CONFIGS.DEPOSIT_ROUTER_ADDRESS, OPENFI_CONFIGS.LENDING_ABI, this.wallet);
             
             const lendingPool = ethers.ZeroAddress; 
             const referralCode = 0;
 
             const txData = await lendingContract.depositETH.populateTransaction(lendingPool, this.address, referralCode, { value: amountWei });
-            await this.#executeTx(txData, `Deposit ${this.operationParams.openFiAmounts.deposit} PHRS to OpenFi`);
+            await this.#executeTx(txData, `Deposit ${amount} PHRS to OpenFi`);
 
         } catch(e) {
             log('OPENFI-DEPOSIT', `[FAIL] Failed to deposit PHRS: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
@@ -836,10 +705,11 @@ class AccountProcessor {
     }
 
     async batchSupplyOpenFi() {
-        if (!this.operationParams.openFiAmounts || !this.operationParams.openFiAmounts.supply) return new Set();
+        const { openFiAmounts, minDelayMs, maxDelayMs } = this.operationParams;
+        if (!openFiAmounts || !openFiAmounts.supply) return new Set();
         
         const failedSymbols = new Set();
-        const amount = this.operationParams.openFiAmounts.supply;
+        const amount = openFiAmounts.supply;
         log('OPENFI-SUPPLY', `Starting Supply task: ${amount} of each token...`, Colors.Bright, '📤');
 
         for (const [symbol, asset] of Object.entries(OPENFI_CONFIGS.ASSETS)) {
@@ -863,7 +733,7 @@ class AccountProcessor {
                 const txData = await lendingContract.supply.populateTransaction(asset.address, amountWei, this.address, referralCode);
                 await this.#executeTx(txData, description);
 
-                const randomDelay = Math.floor(Math.random() * (this.operationParams.maxDelayMs - this.operationParams.minDelayMs + 1)) + this.operationParams.minDelayMs;
+                const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
                 log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
                 await new Promise(r => setTimeout(r, randomDelay));
             } catch(e) {
@@ -875,9 +745,10 @@ class AccountProcessor {
     }
     
     async batchBorrowOpenFi(failedSupplySymbols = new Set()) {
-        if (!this.operationParams.openFiAmounts || !this.operationParams.openFiAmounts.borrow) return;
+        const { openFiAmounts, minDelayMs, maxDelayMs } = this.operationParams;
+        if (!openFiAmounts || !openFiAmounts.borrow) return;
 
-        const amount = this.operationParams.openFiAmounts.borrow;
+        const amount = openFiAmounts.borrow;
         log('OPENFI-BORROW', `Starting Borrow task: ${amount} of each token...`, Colors.Bright, '💸');
         
         for (const [symbol, asset] of Object.entries(OPENFI_CONFIGS.ASSETS)) {
@@ -897,7 +768,7 @@ class AccountProcessor {
                 const txData = await lendingContract.borrow.populateTransaction(asset.address, amountWei, interestRateMode, referralCode, this.address);
                 
                 await this.#executeTx(txData, description);
-                const randomDelay = Math.floor(Math.random() * (this.operationParams.maxDelayMs - this.operationParams.minDelayMs + 1)) + this.operationParams.minDelayMs;
+                const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
                 log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
                 await new Promise(r => setTimeout(r, randomDelay));
             } catch(e) {
@@ -910,14 +781,12 @@ class AccountProcessor {
         log('OPENFI-WITHDRAW', `Starting Withdraw task...`, Colors.Bright, '💰');
 
         for (const [symbol, asset] of Object.entries(OPENFI_CONFIGS.ASSETS)) {
-           
             const description = `Withdraw all ${symbol} from OpenFi`;
             log('OPENFI-WITHDRAW', `Withdrawing all ${symbol}...`, Colors.FgMagenta, '➕');
             
             try {
                 const amountWei = ethers.MaxUint256;
                 const lendingContract = new ethers.Contract(OPENFI_CONFIGS.SUPPLY_ROUTER_ADDRESS, OPENFI_CONFIGS.LENDING_ABI, this.wallet);
-         
                 const txData = await lendingContract.withdraw.populateTransaction(asset.address, amountWei, this.address);
 
                 await this.#executeTx(txData, description);
@@ -935,7 +804,6 @@ class AccountProcessor {
     async claimBrokexFaucet() {
         log('BROKEX', `Claiming USDT from Faucet...`, Colors.Bright, '💧');
         try {
-           
             const faucetContract = new ethers.Contract(BROKEX_CONFIGS.CLAIM_ROUTER_ADDRESS, BROKEX_CONFIGS.CLAIM_ABI, this.wallet);
             const txData = await faucetContract.claim.populateTransaction();
             await this.#executeTx(txData, 'Claim USDT from Brokex Faucet');
@@ -945,7 +813,6 @@ class AccountProcessor {
     }
     
     async batchBrokexTrade() {
-      
         const { brokexParams, minDelayMs, maxDelayMs } = this.operationParams;
         if (!brokexParams) return;
 
@@ -996,7 +863,7 @@ class AccountProcessor {
     async batchZentrafiUnwrap() {
         const { zentrafiParams, minDelayMs, maxDelayMs } = this.operationParams;
         if (!zentrafiParams || !zentrafiParams.unwrapOps || zentrafiParams.unwrapOps <= 0 || !zentrafiParams.unwrapAmount) return;
-      
+        
         log('ZENTRAFI', `Starting Unwrap task: ${zentrafiParams.unwrapOps} operations of ${zentrafiParams.unwrapAmount} WPHRS each...`, Colors.Bright, '-');
         
         const amountToUnwrapWei = ethers.parseEther(zentrafiParams.unwrapAmount);
@@ -1009,9 +876,11 @@ class AccountProcessor {
                 let currentBalance = await wphrsTokenContract.balanceOf(this.address);
     
                 if (currentBalance < amountToUnwrapWei) {
-                    log('ZENTRAFI', `Insufficient WPHRS balance. Have: ${ethers.formatEther(currentBalance)}, Need: ${zentrafiParams.unwrapAmount}. Attempting to wrap PHRS...`, Colors.FgYellow, '⚠️');
+                    log('ZENTRAFI', `Insufficient WPHRS balance. Have: ${ethers.formatEther(currentBalance)}, Need: ${zentrafiParams.unwrapAmount}. Attempting to wrap PHRS...`, Colors.FgYellow, '📦');
+    
                     const neededToWrap = amountToUnwrapWei - currentBalance;
                     const nativeBalance = await this.provider.getBalance(this.address);
+    
                     if (nativeBalance < neededToWrap) {
                         log('ZENTRAFI', `[FAIL] Not enough native PHRS to wrap. Have: ${ethers.formatEther(nativeBalance)}, Need: ${ethers.formatEther(neededToWrap)}`, Colors.FgRed, '❌');
                         break; 
@@ -1019,7 +888,7 @@ class AccountProcessor {
     
                     const wphrsContractForWrap = new ethers.Contract(ZENTRAFI_CONFIGS.WPHRS_ADDRESS, DEX_CONFIGS.ZENITHSWAP.ERC20_ABI, this.wallet);
                     const wrapTxData = await wphrsContractForWrap.deposit.populateTransaction({ value: neededToWrap });
-                    await this.#executeTx(wrapTxData, `Wrap ${ethers.formatEther(needed)} PHRS for Zentra`);
+                    await this.#executeTx(wrapTxData, `Wrap ${ethers.formatEther(neededToWrap)} PHRS for Zentra`);
                 }
 
                 const wphrsContract = new ethers.Contract(ZENTRAFI_CONFIGS.WPHRS_ADDRESS, ZENTRAFI_CONFIGS.WPHRS_ABI, this.wallet);
@@ -1053,204 +922,11 @@ class AccountProcessor {
         }
     }
 
-    async #randomName() {
-        const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
-        const noun = nouns[Math.floor(Math.random() * nouns.length)];
-        return `${adjective.toLowerCase()}${noun.toLowerCase()}`;
-    }
-
-    async #checkIfAlreadyGrandlineClaimed(wallet, contractAddress, claimAbi) {
-        try {
-            const contract = new ethers.Contract(contractAddress, claimAbi, this.provider);
-            try {
-                const balance = await contract.balanceOf(wallet.address);
-                if (balance > 0n) {
-                    log('GRANDLINE-NFT', `Wallet ${wallet.address.slice(0, 10)}... already has ${balance} NFT/token from this contract.`, Colors.FgYellow, '⚠️');
-                    return true;
-                }
-            } catch (err) {
-                try {
-                    const hasClaimed = await contract.hasClaimed(wallet.address);
-                    if (hasClaimed) {
-                        log('GRANDLINE-NFT', `Wallet ${wallet.address.slice(0, 10)}... has already claimed from this contract.`, Colors.FgYellow, '⚠️');
-                        return true;
-                    }
-                } catch (err2) {
-                    log('GRANDLINE-NFT', `Cannot definitively check claim status for ${wallet.address.slice(0, 10)}... on contract ${contractAddress.slice(0,10)}... Assuming not claimed.`, Colors.FgYellow, '⚠️');
-                    return false;
-                }
-            }
-            return false;
-        } catch (err) {
-            log('GRANDLINE-NFT', `Error checking claim status for ${wallet.address.slice(0, 10)}...: ${err.message}. Assuming not claimed to attempt.`, Colors.FgRed, '❌');
-            return false;
-        }
-    }
-
-    async runGrandlineNFTMint() {
-        const { minDelayMs, maxDelayMs, grandlineNFTParams } = this.operationParams;
-        if (!grandlineNFTParams || !grandlineNFTParams.contractAddress || !grandlineNFTParams.claimAbi) {
-            log('GRANDLINE-NFT', 'Grandline NFT Mint parameters not fully configured. Skipping.', Colors.FgYellow, '⚠️');
-            return false;
-        }
-
-        const { quantity, pricePerToken, claimCount, contractAddress, claimAbi } = grandlineNFTParams;
-        log('GRANDLINE-NFT', `Starting Grandline NFT Mint task for ${claimCount} operations on contract ${contractAddress.slice(0,10)}...`, Colors.Bright, '✨');
-        
-        let successOverall = false;
-
-        for (let i = 0; i < claimCount; i++) {
-            log('GRANDLINE-NFT', `[${i + 1}/${claimCount}] Attempting to claim ${quantity} tokens...`, Colors.FgMagenta, '➕');
-            try {
-                const alreadyClaimed = await this.#checkIfAlreadyGrandlineClaimed(this.wallet, contractAddress, claimAbi);
-                if (alreadyClaimed) {
-                    log('GRANDLINE-NFT', `[${i + 1}/${claimCount}] Skipping ${this.address.slice(0, 10)}... - already claimed.`, Colors.FgYellow, '⚠️');
-                    successOverall = true;
-                    continue;
-                }
-
-                const iface = new ethers.Interface(claimAbi);
-                const receiver = this.address;
-                const currency = GRANDLINE_NFT_CONSTANTS.CURRENCY_ADDRESS;
-                const pricePerTokenWei = ethers.parseEther(pricePerToken.toString());
-
-                const proof = [];
-                const quantityLimitPerWallet = 0;
-                const allowlistPricePerToken = 0;
-                const allowlistCurrency = '0x0000000000000000000000000000000000000000';
-                const allowlistProof = [proof, quantityLimitPerWallet, allowlistPricePerToken, allowlistCurrency];
-
-                const dataBytes = '0x';
-
-                const calldata = iface.encodeFunctionData('claim', [
-                    receiver,
-                    quantity,
-                    currency,
-                    pricePerTokenWei,
-                    allowlistProof,
-                    dataBytes
-                ]);
-                const value = pricePerTokenWei;
-
-                const txRequest = {
-                    to: contractAddress,
-                    data: calldata,
-                    value: value,
-                };
-                
-                await this.#executeTx(txRequest, `Grandline NFT Claim ${quantity} token from ${contractAddress.slice(0,10)}...`);
-                log('GRANDLINE-NFT', `[${i + 1}/${claimCount}] Claim successful!`, Colors.FgGreen, '✅');
-                successOverall = true;
-            } catch (e) {
-                log('GRANDLINE-NFT', `[${i + 1}/${claimCount}] Claim failed: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
-            }
-
-            if (i < claimCount - 1) {
-                const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
-                log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
-                await new Promise(r => setTimeout(r, randomDelay));
-            }
-        }
-        return successOverall;
-    }
-
-    async runPNSRegistration() {
-        const { minDelayMs, maxDelayMs, pnsParams } = this.operationParams;
-        if (!pnsParams || pnsParams.regPerKey === undefined) {
-            log('PNS', 'PNS registration parameters not configured. Skipping.', Colors.FgYellow, '⚠️');
-            return false;
-        }
-
-        const { regPerKey, controllerAddress, duration, resolver, data, reverseRecord, ownerControlledFuses } = pnsParams;
-        const controllerContract = new ethers.Contract(controllerAddress, [
-            "function makeCommitment(string name, address owner, uint256 duration, bytes32 secret, address resolver, bytes[] data, bool reverseRecord, uint16 ownerControlledFuses) public pure returns (bytes32)",
-            "function commit(bytes32 commitment) public",
-            "function rentPrice(string name, uint256 duration) public view returns (tuple(uint256 base, uint256 premium))",
-            "function register(string name, address owner, uint256 duration, bytes32 secret, address resolver, bytes[] data, bool reverseRecord, uint16 ownerControlledFuses) public payable"
-        ], this.wallet);
-
-        let successOverall = false;
-
-        for (let i = 0; i < regPerKey; i++) {
-            const domainName = await this.#randomName(); // AWAIT the #randomName() call here
-            log('PNS', `[Registration #${i + 1}/${regPerKey}] Starting PNS registration...`, Colors.Bright, '🌐');
-            const MAX_RETRY = 5;
-            let retry = 0;
-            while (retry < MAX_RETRY) {
-                try {
-                    const SECRET = "0x" + randomBytes(32).toString("hex");
-                    log('PNS', `[Registration #${i + 1}/${regPerKey}] Attempting to register ${domainName}.phrs for wallet ${this.address.slice(0,8)}...`, Colors.FgCyan);
-
-                    const commitment = await controllerContract.makeCommitment(
-                        domainName,
-                        this.address,
-                        duration,
-                        SECRET,
-                        resolver,
-                        data,
-                        reverseRecord,
-                        ownerControlledFuses
-                    );
-                    log('PNS', `[Registration #${i + 1}/${regPerKey}] Commitment created: ${commitment.slice(0,10)}...`, Colors.FgBlue);
-
-                    let txResponse = await this.#executeTx(
-                        await controllerContract.commit.populateTransaction(commitment),
-                        `PNS Commit for ${domainName}.phrs`
-                    );
-                    log('PNS', `[Registration #${i + 1}/${regPerKey}] Commitment sent! Tx: ${txResponse.hash}`, Colors.FgGreen);
-
-                    log('PNS', `[Registration #${i + 1}/${regPerKey}] Waiting for minCommitmentAge (60s)...`, Colors.FgYellow);
-                    await new Promise(r => setTimeout(r, 60000));
-
-                    const price = await controllerContract.rentPrice(domainName, duration);
-                    const value = price.base + price.premium;
-                    log('PNS', `[Registration #${i + 1}/${regPerKey}] Registration price: ${ethers.formatEther(value)} PHRS`, Colors.FgMagenta);
-
-                    txResponse = await this.#executeTx(
-                        await controllerContract.register.populateTransaction(
-                            domainName,
-                            this.address,
-                            duration,
-                            SECRET,
-                            resolver,
-                            data,
-                            reverseRecord,
-                            ownerControlledFuses,
-                            { value }
-                        ),
-                        `PNS Register ${domainName}.phrs`
-                    );
-                    log('PNS', `[Registration #${i + 1}/${regPerKey}] Registration successful! Domain: ${domainName}.phrs Tx: ${txResponse.hash}`, Colors.FgGreen, '✅');
-                    successOverall = true;
-                    break;
-                } catch (e) {
-                    retry++;
-                    let errMsg = e.message.split('(')[0];
-                    if (e.code === 'CALL_EXCEPTION' && e.reason) errMsg += ` (Reason: ${e.reason})`;
-                    log('PNS', `[Registration #${i + 1}/${regPerKey}] Attempt ${retry}/${MAX_RETRY} failed: ${errMsg}`, Colors.FgRed, '❌');
-                    if (retry < MAX_RETRY) {
-                        log('PNS', `[Registration #${i + 1}/${regPerKey}] Retrying in 60s...`, Colors.FgYellow);
-                        await new Promise(r => setTimeout(r, 60000));
-                    } else {
-                        log('PNS', `[Registration #${i + 1}/${regPerKey}] Max retries reached for PNS registration. Skipping to next.`, Colors.FgRed, '🛑');
-                    }
-                }
-            }
-            if (i < regPerKey - 1) {
-                const randomDelay = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
-                log('SYSTEM', `Waiting ${randomDelay / 1000}s for next PNS registration...`, Colors.FgDim, '⏳');
-                await new Promise(r => setTimeout(r, randomDelay));
-            }
-        }
-        return successOverall;
-    }
-
     async run() {
         try {
-            const { runAutoSend, swapMode, swapParams, lpMode, lpParams, runOpenFi, openFiTasks, runBrokex, brokexTasks, runZentrafi, zentrafiTasks, runGotchipusMint, runGrandlineNFTMint, runPNSRegistration } = this.operationParams;
+            const { runAutoSend, swapMode, swapParams, lpMode, lpParams, runOpenFi, openFiTasks, runBrokex, brokexTasks, runZentrafi, zentrafiTasks, runGotchipusMint } = this.operationParams;
+            
             let mintedNftResult = false;
-            let grandlineClaimedResult = false;
-            let pnsRegisteredResult = false;
             
             await showAllBalances(this.address, this.provider);
             const checkinClient = new CheckinClient({ address: this.address, wallet: this.wallet, userAgent: new UserAgent().toString(), proxyAgent: this.proxyAgent }, log);
@@ -1285,11 +961,7 @@ class AccountProcessor {
                 }
                 
                 if (openFiTasks.includes('deposit')) {
-                    if (this.operationParams.openFiAmounts && this.operationParams.openFiAmounts.deposit) {
-                        await this.depositOpenFi();
-                    } else {
-                        log('OPENFI-DEPOSIT', `Deposit amount not configured. Skipping.`, Colors.FgYellow, '⚠️');
-                    }
+                    await this.depositOpenFi();
                 }
 
                 if (openFiTasks.includes('borrow')) {
@@ -1332,31 +1004,9 @@ class AccountProcessor {
                     }
                 }
             }
-
-            if (runGrandlineNFTMint) {
-                if (this.operationParams.grandlineNFTParams && this.operationParams.grandlineNFTParams.contractAddress) {
-                    const success = await this.runGrandlineNFTMint();
-                    if (success) {
-                        grandlineClaimedResult = true;
-                    }
-                } else {
-                    log('GRANDLINE-NFT', 'Grandline NFT Mint selected but config not loaded. Check configmint.js and ensure it exports TO_ADDRESS and CLAIM_ABI.', Colors.FgRed, '❌');
-                }
-            }
-
-            if (runPNSRegistration) {
-                if (this.operationParams.pnsParams.regPerKey !== undefined) {
-                    const success = await this.runPNSRegistration();
-                    if (success) {
-                        pnsRegisteredResult = true;
-                    }
-                } else {
-                    log('PNS', 'PNS registration selected but parameters are missing. Skipping.', Colors.FgRed, '❌');
-                }
-            }
             
             log('ACCOUNT', `Finished all operations for ${this.address}.`, Colors.FgGreen, '✅');
-            return { success: true, address: this.address, mintedNft: mintedNftResult, claimedGrandlineNFT: grandlineClaimedResult, pnsRegistered: pnsRegisteredResult };
+            return { success: true, address: this.address, mintedNft: mintedNftResult };
         } catch (error) {
             log('ACCOUNT', `An error occurred during operations for ${this.address}: ${error.message}`, Colors.FgRed, '❌');
             return { success: false, address: this.address, error: error.message };
@@ -1434,6 +1084,7 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
     const initialDelay = Math.floor(Math.random() * 5000);
     await new Promise(r => setTimeout(r, initialDelay));
     console.log(`\n${Colors.Bright}--- Wallet: ${accountFullAddress} (starting after ${initialDelay/1000}s delay) ---${Colors.Reset}`);
+    
     if (account.proxyAgent) {
         const publicIp = await getPublicIpViaProxy(account.proxyAgent);
         log('PROXY', `Connected via proxy. Public IP: ${publicIp}`, Colors.FgCyan, '🌐');
@@ -1445,6 +1096,7 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
         const provider = await buildFallbackProvider(PHAROS_RPC_URLS, PHAROS_CHAIN_ID, account.proxyAgent, accountFullAddress);
         const accountPools = operationParams.faroPools[account.accountIndex] || {};
         const paramsWithPools = {...operationParams, faroPools: accountPools, mintedGotchipusAddresses };
+
         const processor = new AccountProcessor(account, paramsWithPools, provider);
         return await processor.run();
     } catch (err) {
@@ -1460,31 +1112,17 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
 
     let privateKeys = [], proxyUrls = [], recipientAddresses = [], faroPools = [];
     try { privateKeys = fs.readFileSync('YourPrivateKey.txt', 'utf8').split('\n').map(line => line.trim()).filter(Boolean); log('CONFIG', `Loaded ${privateKeys.length} private keys.`, Colors.FgCyan, '✅'); } catch (e) { log('ERROR', 'YourPrivateKey.txt not found.', Colors.FgRed, '❌'); process.exit(1); }
-  
-    try { proxyUrls = fs.readFileSync('proxy.txt', 'utf8').split('\n').map(line => line.trim()); log('CONFIG', `Loaded ${proxyUrls.length} proxy entries.`, Colors.FgCyan, '✅');
-    } catch (e) { 
-        if (e.code !== 'ENOENT') {
-            log('WARNING', `Error loading proxy.txt: ${e.message}`, Colors.FgYellow, '⚠️');
-        }
-    }
-    try { recipientAddresses = fs.readFileSync('wallets.txt', 'utf8').split('\n').map(line => line.trim()).filter(Boolean); log('CONFIG', `Loaded ${recipientAddresses.length} recipient addresses.`, Colors.FgCyan, '✅');
-    } catch (e) { 
-        if (e.code !== 'ENOENT') {
-            log('WARNING', `Error loading wallets.txt: ${e.message}. Auto Send will be skipped.`, Colors.FgYellow, '⚠️');
-        }
-    }
+    try { proxyUrls = fs.readFileSync('proxy.txt', 'utf8').split('\n').map(line => line.trim()); log('CONFIG', `Loaded ${proxyUrls.length} proxy entries.`, Colors.FgCyan, '✅'); } catch (e) { log('WARNING', 'proxy.txt not found.', Colors.FgYellow, '⚠️'); }
+    try { recipientAddresses = fs.readFileSync('wallets.txt', 'utf8').split('\n').map(line => line.trim()).filter(Boolean); log('CONFIG', `Loaded ${recipientAddresses.length} recipient addresses.`, Colors.FgCyan, '✅'); } catch (e) { log('WARNING', 'wallets.txt not found. Auto Send will be skipped.', Colors.FgYellow, '⚠️'); }
     try {
         const poolsData = fs.readFileSync('pools.json', 'utf8');
         faroPools = JSON.parse(poolsData);
         log('CONFIG', `Loaded ${faroPools.length} pool configurations from pools.json.`, Colors.FgCyan, '✅');
     } catch (e) {
-        if (e.code !== 'ENOENT') {
-            log('WARNING', `Error loading pools.json: ${e.message}. FaroSwap Add Liquidity will be skipped.`, Colors.FgYellow, '⚠️');
-        }
+        log('WARNING', 'pools.json not found or is invalid. FaroSwap Add Liquidity will be skipped.', Colors.FgYellow, '⚠️');
     }
 
-    if (privateKeys.length === 0) { log('ERROR', 'No valid accounts to process.', Colors.FgRed, '❌'); process.exit(1);
-    }
+    if (privateKeys.length === 0) { log('ERROR', 'No valid accounts to process.', Colors.FgRed, '❌'); process.exit(1); }
     
     const accountsToProcess = privateKeys.map((pk, i) => ({
         pk,
@@ -1492,37 +1130,19 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
         accountIndex: i,
     }));
     log('SYSTEM', 'Welcome! Please configure the tasks for the first run.', Colors.Bright, '👋');
-    const operationParams = { 
-        swapParams: {}, 
-        lpParams: {}, 
-        openFiAmounts: {}, 
-        brokexParams: {}, 
-        zentrafiParams: {}, 
-        faroPools, 
-        grandlineNFTParams: {},
-        pnsParams: {
-            controllerAddress: PNS_CONFIGS.CONTROLLER_ADDRESS,
-            duration: PNS_CONFIGS.DURATION,
-            resolver: PNS_CONFIGS.RESOLVER,
-            data: PNS_CONFIGS.DATA,
-            reverseRecord: PNS_CONFIGS.REVERSE_RECORD,
-            ownerControlledFuses: PNS_CONFIGS.OWNER_CONTROLLED_FUSES
-        } 
-    };
+    const operationParams = { swapParams: {}, lpParams: {}, openFiAmounts: {}, brokexParams: {}, zentrafiParams: {}, faroPools };
     const settings = {};
     const minSecs = await askQuestion({ message: `${Colors.FgBlue}⏳ Enter MINIMUM delay between TXs (seconds): ${Colors.Reset}` });
     const maxSecs = await askQuestion({ message: `${Colors.FgBlue}⏳ Enter MAXIMUM delay between TXs (seconds): ${Colors.Reset}` });
     operationParams.minDelayMs = parseInt(minSecs) * 1000;
     operationParams.maxDelayMs = parseInt(maxSecs) * 1000;
-    if (isNaN(operationParams.minDelayMs) || isNaN(operationParams.maxDelayMs) || operationParams.maxDelayMs < operationParams.minDelayMs) { log('ERROR', 'Invalid delay settings.', Colors.FgRed, '❌');
-    process.exit(1); }
+    if (isNaN(operationParams.minDelayMs) || isNaN(operationParams.maxDelayMs) || operationParams.maxDelayMs < operationParams.minDelayMs) { log('ERROR', 'Invalid delay settings.', Colors.FgRed, '❌'); process.exit(1); }
 
     const autoSendPrompt = `${Colors.FgBlue}📤 Perform Auto Send task?\n   1. Yes\n   2. No\nEnter number: ${Colors.Reset}`;
     const autoSendAnswer = await askQuestion({ message: autoSendPrompt });
     operationParams.runAutoSend = autoSendAnswer.trim() === '1';
     if (operationParams.runAutoSend) {
-        if (recipientAddresses.length === 0) { log('ERROR', 'Cannot run Auto Send, wallets.txt is empty.', Colors.FgRed, '❌');
-        operationParams.runAutoSend = false; } else {
+        if (recipientAddresses.length === 0) { log('ERROR', 'Cannot run Auto Send, wallets.txt is empty.', Colors.FgRed, '❌'); operationParams.runAutoSend = false; } else {
             const sendCountInput = (await askQuestion({ message: `${Colors.FgBlue}🔁 How many wallets to send to? (Enter a number or 'all'): ${Colors.Reset}` })).toLowerCase();
             if (sendCountInput === 'all') {
                 settings.RECIPIENT_COUNT = 'all';
@@ -1536,8 +1156,7 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
             }
             const minAmount = parseFloat(await askQuestion({ message: `${Colors.FgBlue}💸 Enter MINIMUM PHRS amount to send: ${Colors.Reset}` }));
             const maxAmount = parseFloat(await askQuestion({ message: `${Colors.FgBlue}💸 Enter MAXIMUM PHRS amount to send: ${Colors.Reset}` }));
-            if (isNaN(minAmount) || isNaN(maxAmount) || minAmount <= 0 || maxAmount < minAmount) { log('ERROR', 'Invalid send amount.', Colors.FgRed, '❌'); process.exit(1);
-            }
+            if (isNaN(minAmount) || isNaN(maxAmount) || minAmount <= 0 || maxAmount < minAmount) { log('ERROR', 'Invalid send amount.', Colors.FgRed, '❌'); process.exit(1); }
             settings.AMOUNT_SEND = [minAmount, maxAmount];
         }
     }
@@ -1565,12 +1184,10 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
         }
         const toToken = availableTokens[tokenIndex];
         log('SYSTEM', `Selected token: ${toToken}`, Colors.FgCyan, '👍');
-        const amount = parseFloat(await askQuestion({ message: `${Colors.FgBlue}[${dexName}] Enter amount of ${fromToken} to swap: ${Colors.Reset}` }));
-        if (isNaN(amount) || parseFloat(amount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌'); process.exit(1);
-        }
+        const amount = await askQuestion({ message: `${Colors.FgBlue}[${dexName}] Enter amount of ${fromToken} to swap: ${Colors.Reset}` });
+        if (isNaN(amount) || parseFloat(amount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌'); process.exit(1); }
         const count = parseInt(await askQuestion({ message: `${Colors.FgBlue}[${dexName}] How many swaps on ${dexName}?: ${Colors.Reset}` }));
-        if (isNaN(count) || count < 1) { log('ERROR', 'Invalid swap count.', Colors.FgRed, '❌'); process.exit(1);
-        }
+        if (isNaN(count) || count < 1) { log('ERROR', 'Invalid swap count.', Colors.FgRed, '❌'); process.exit(1); }
         return { fromToken, toToken, amount, count };
     }
 
@@ -1599,10 +1216,12 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
         let pairChoices, lpPairs;
         if (dexName === 'Faroswap') {
             lpPairs = FAROSWAP_DVM_PAIRS;
+            pairChoices = lpPairs.map((p, i) => `   ${i + 1}. ${p.name}`).join('\n');
         } else {
             lpPairs = ZENITH_LP_PAIRS;
+            pairChoices = lpPairs.map((p, i) => `   ${i + 1}. ${p.name}`).join('\n');
         }
-        pairChoices = lpPairs.map((p, i) => `   ${i + 1}. ${p.name}`).join('\n');
+
         const pairSelectionPrompt = `${Colors.FgBlue}[${dexName}-LP] Please select a liquidity pair:\n${pairChoices}\nEnter number: ${Colors.Reset}`;
         const pairIndex = parseInt(await askQuestion({ message: pairSelectionPrompt })) - 1;
         if (isNaN(pairIndex) || !lpPairs[pairIndex]) {
@@ -1621,8 +1240,8 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
             console.log('');
         }
 
-        const amount0 = parseFloat(await askQuestion({ message: `${Colors.FgBlue}[${dexName}-LP] Enter amount for ${token0}: ${Colors.Reset}` }));
-        const amount1 = parseFloat(await askQuestion({ message: `${Colors.FgBlue}[${dexName}-LP] Enter amount for ${token1}: ${Colors.Reset}` }));
+        const amount0 = await askQuestion({ message: `${Colors.FgBlue}[${dexName}-LP] Enter amount for ${token0}: ${Colors.Reset}` });
+        const amount1 = await askQuestion({ message: `${Colors.FgBlue}[${dexName}-LP] Enter amount for ${token1}: ${Colors.Reset}` });
         if (isNaN(amount0) || parseFloat(amount0) <= 0 || isNaN(amount1) || parseFloat(amount1) <= 0) {
             log('ERROR', 'Invalid amount for liquidity.', Colors.FgRed, '❌');
             process.exit(1);
@@ -1646,10 +1265,10 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
     } else if (operationParams.lpMode === 'zenithswap') {
         operationParams.lpParams.ZENITHSWAP = await getLpParams('Zenithswap');
     } else if (operationParams.lpMode === 'both') {
-        log('SYSTEM', 'Configuring Faroswap...', Colors.FgMagenta, '1️⃣');
-        operationParams.lpParams.FAROSWAP = await getLpParams('Faroswap', DEX_CONFIGS.FAROSWAP);
-        log('SYSTEM', 'Configuring Zenithswap...', Colors.FgMagenta, '2️⃣');
-        operationParams.lpParams.ZENITHSWAP = await getLpParams('Zenithswap', DEX_CONFIGS.ZENITHSWAP);
+        log('SYSTEM', 'Configuring FaroSwap Liquidity...', Colors.FgMagenta, '1️⃣');
+        operationParams.lpParams.FAROSWAP = await getLpParams('Faroswap');
+        log('SYSTEM', 'Configuring ZenithSwap Liquidity...', Colors.FgMagenta, '2️⃣');
+        operationParams.lpParams.ZENITHSWAP = await getLpParams('Zenithswap');
     }
 
     const openFiPrompt = `${Colors.FgBlue}🔮 Perform OpenFi tasks?\n   1. Yes\n   2. No\nEnter number: ${Colors.Reset}`;
@@ -1680,29 +1299,26 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
         const tokenList = Object.keys(OPENFI_CONFIGS.ASSETS).join(', ');
         
         if (selectedTasks.includes('deposit')) {
-            const amount = parseFloat(await askQuestion({ message: `${Colors.FgBlue}[OpenFi] Enter amount of PHRS to Deposit: ${Colors.Reset}` }));
-            if (isNaN(amount) || parseFloat(amount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌'); process.exit(1);
-            }
+            const amount = await askQuestion({ message: `${Colors.FgBlue}[OpenFi] Enter amount of PHRS to Deposit: ${Colors.Reset}` });
+            if (isNaN(amount) || parseFloat(amount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌'); process.exit(1); }
             operationParams.openFiAmounts.deposit = amount;
         }
 
         if (selectedTasks.includes('supply')) {
             const supplyMessage = `${Colors.FgBlue}[OpenFi] Enter amount for each token to Supply.\n` +
-                                  `${Colors.FgDim}(This amount will be used for each of the following tokens: ${tokenList})${Colors.Reset}\n` +
+                                  `   ${Colors.FgDim}(This amount will be used for each of the following tokens: ${tokenList})${Colors.Reset}\n` +
                                   `${Colors.FgBlue}Enter amount: ${Colors.Reset}`;
-            const amount = parseFloat(await askQuestion({ message: supplyMessage }));
-            if (isNaN(amount) || parseFloat(amount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌');
-            process.exit(1); }
+            const amount = await askQuestion({ message: supplyMessage });
+            if (isNaN(amount) || parseFloat(amount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌'); process.exit(1); }
             operationParams.openFiAmounts.supply = amount;
         }
 
         if (selectedTasks.includes('borrow')) {
             const borrowMessage = `${Colors.FgBlue}[OpenFi] Enter amount for each token to Borrow.\n` +
-                                  `${Colors.FgDim}(This amount will be used for each of the following tokens: ${tokenList})${Colors.FgReset}\n` +
+                                  `   ${Colors.FgDim}(This amount will be used for each of the following tokens: ${tokenList})${Colors.Reset}\n` +
                                   `${Colors.FgBlue}Enter amount: ${Colors.Reset}`;
-            const amount = parseFloat(await askQuestion({ message: borrowMessage }));
-            if (isNaN(amount) || parseFloat(amount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌');
-            process.exit(1); }
+            const amount = await askQuestion({ message: borrowMessage });
+            if (isNaN(amount) || parseFloat(amount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌'); process.exit(1); }
             operationParams.openFiAmounts.borrow = amount;
         }
 
@@ -1735,12 +1351,10 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
         operationParams.brokexTasks = selectedTasks;
         log('SYSTEM', `Selected Brokex tasks: ${selectedTasks.join(', ')}`, Colors.FgCyan, '👍');
         if (selectedTasks.includes('trade')) {
-            const tradeCount = parseInt(await askQuestion({ message: `${Colors.FgBlue}[Brokex] How many trades to perform per wallet?: ${Colors.Reset}` }));
-            if (isNaN(tradeCount) || parseInt(tradeCount) <= 0) { log('ERROR', 'Invalid trade count.', Colors.FgRed, '❌'); process.exit(1);
-            }
-            const tradeAmount = parseFloat(await askQuestion({ message: `${Colors.FgBlue}[Brokex] Enter USDT amount for each trade: ${Colors.Reset}` }));
-            if (isNaN(tradeAmount) || parseFloat(tradeAmount) <= 0) { log('ERROR', 'Invalid trade amount.', Colors.FgRed, '❌'); process.exit(1);
-            }
+            const tradeCount = await askQuestion({ message: `${Colors.FgBlue}[Brokex] How many trades to perform per wallet?: ${Colors.Reset}` });
+            if (isNaN(tradeCount) || parseInt(tradeCount) <= 0) { log('ERROR', 'Invalid trade count.', Colors.FgRed, '❌'); process.exit(1); }
+            const tradeAmount = await askQuestion({ message: `${Colors.FgBlue}[Brokex] Enter USDT amount for each trade: ${Colors.Reset}` });
+            if (isNaN(tradeAmount) || parseFloat(tradeAmount) <= 0) { log('ERROR', 'Invalid trade amount.', Colors.FgRed, '❌'); process.exit(1); }
             operationParams.brokexParams = { tradeCount: parseInt(tradeCount), tradeAmount };
         }
     }
@@ -1751,7 +1365,7 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
     if (operationParams.runZentrafi) {
         const zentraTaskChoices = `   1. Unwrap\n` +
                                 `   2. Swap (Coming Soon)\n` +
-                                `3. Add Liquidity (Coming Soon)`;
+                                `   3. Add Liquidity (Coming Soon)`;
         const zentraSelectionPrompt = `${Colors.FgBlue}Z Select Zentra Task(s) to run:\n${zentraTaskChoices}\n${Colors.FgYellow}Note: Only Unwrap is currently available.${Colors.Reset}\nEnter number: ${Colors.Reset}`;
         const zentraTaskAnswer = await askQuestion({ message: zentraSelectionPrompt });
 
@@ -1766,21 +1380,19 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
         operationParams.zentrafiTasks = selectedTasks;
         if (selectedTasks.includes('unwrap')) {
             const zentrafiParams = {};
-            const unwrapOps = parseInt(await askQuestion({ message: `${Colors.FgBlue}[Zentra] How many Unwrap WPHRS operations?: ${Colors.Reset}` }));
-            if (isNaN(unwrapOps) || parseInt(unwrapOps) < 0) { log('ERROR', 'Invalid number of operations.', Colors.FgRed, '❌'); process.exit(1);
-            }
+            const unwrapOps = await askQuestion({ message: `${Colors.FgBlue}[Zentra] How many Unwrap WPHRS operations?: ${Colors.Reset}` });
+            if (isNaN(unwrapOps) || parseInt(unwrapOps) < 0) { log('ERROR', 'Invalid number of operations.', Colors.FgRed, '❌'); process.exit(1); }
             zentrafiParams.unwrapOps = parseInt(unwrapOps);
-            const unwrapAmount = parseFloat(await askQuestion({ message: `${Colors.FgBlue}[Zentra] Enter WPHRS amount to Unwrap each time: ${Colors.Reset}` }));
-            if (isNaN(unwrapAmount) || parseFloat(unwrapAmount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌'); process.exit(1);
-            }
+        
+            const unwrapAmount = await askQuestion({ message: `${Colors.FgBlue}[Zentra] Enter WPHRS amount to Unwrap each time: ${Colors.Reset}` });
+            if (isNaN(unwrapAmount) || parseFloat(unwrapAmount) <= 0) { log('ERROR', 'Invalid amount.', Colors.FgRed, '❌'); process.exit(1); }
             zentrafiParams.unwrapAmount = unwrapAmount;
             
             operationParams.zentrafiParams = zentrafiParams;
         }
     }
 
-    const gotchipusPrompt = `${Colors.FgBlue}👾 Perform Gotchipus NFT Mint task?\n   1. Yes\n   2. No\n   * The bot will attempt to mint once per bot run (not daily).\n   * It will record successful mints to 'minted_wallets_gotchipus.txt' to avoid re-minting on the same wallet.\n` +
-                             `Enter number: ${Colors.Reset}`;
+    const gotchipusPrompt = `${Colors.FgBlue}👾 Perform Gotchipus NFT Mint task?\n   1. Yes\n   2. No\nEnter number: ${Colors.Reset}`;
     const gotchipusAnswer = await askQuestion({ message: gotchipusPrompt });
     operationParams.runGotchipusMint = gotchipusAnswer.trim() === '1';
     
@@ -1791,40 +1403,8 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
             mintedGotchipusAddresses = new Set(data.split('\n').map(line => line.trim().toLowerCase()).filter(Boolean));
             log('CONFIG', `Loaded ${mintedGotchipusAddresses.size} already minted wallets for Gotchipus.`, Colors.FgCyan, '✅');
         } catch (e) {
-            if (e.code !== 'ENOENT') {
-                console.error(`Error loading minted_wallets_gotchipus.txt: ${e.message}`);
-            }
+            log('WARNING', 'minted_wallets_gotchipus.txt not found. Will create a new one.', Colors.FgYellow, '⚠️');
         }
-    }
-
-    const grandlineNFTPrompt = `${Colors.FgBlue}✨ Perform Grandline NFT Mint task?\n   1. Yes\n   2. No\n   * The bot will attempt to mint once per bot run (not daily).\n   * You can change the contract address to mint in the configmint.js file.\n   * Example: The mint contract is usually found at a URL like https://app.grandline.world/launchpad/mint/0x1da9f40036bee3fda37ddd9bff624e1125d8991d, where '0x1da9f40036bee3fda37ddd9bff624e1125d8991d' is the mint contract address.\n` +
-                               `Enter number: ${Colors.Reset}`;
-    const grandlineNFTAnswer = await askQuestion({ message: grandlineNFTPrompt });
-    operationParams.runGrandlineNFTMint = grandlineNFTAnswer.trim() === '1';
-
-    if (operationParams.runGrandlineNFTMint) {
-        operationParams.grandlineNFTParams.contractAddress = GRANDLINE_NFT_ADDRESS;
-        operationParams.grandlineNFTParams.claimAbi = GRANDLINE_NFT_ABI;
-
-        const quantity = parseFloat(await askQuestion({ message: `${Colors.FgBlue}[Grandline NFT] Enter quantity of tokens to claim: ${Colors.Reset}` }));
-        if (isNaN(quantity) || quantity <= 0) { log('ERROR', 'Invalid quantity.', Colors.FgRed, '❌'); process.exit(1); }
-        const price = parseFloat(await askQuestion({ message: `${Colors.FgBlue}[Grandline NFT] Enter price per token (in PHRS): ${Colors.Reset}` }));
-        if (isNaN(price) || price < 0) { log('ERROR', 'Invalid price.', Colors.FgRed, '❌'); process.exit(1); }
-        const claimCount = parseInt(await askQuestion({ message: `${Colors.FgBlue}[Grandline NFT] How many times to attempt this claim?: ${Colors.Reset}` }));
-        if (isNaN(claimCount) || claimCount < 1) { log('ERROR', 'Invalid claim count.', Colors.FgRed, '❌'); process.exit(1); }
-        
-        operationParams.grandlineNFTParams = { ...operationParams.grandlineNFTParams, quantity, pricePerToken: price, claimCount };
-    }
-
-    const pnsRegistrationPrompt = `${Colors.FgBlue}🌐 Perform PNS Domain Registration task?\n   1. Yes\n   2. No\n   * If enabled, the bot will attempt to register domains once per wallet for every daily run.\n` +
-                                `Enter number: ${Colors.Reset}`;
-    const pnsRegistrationAnswer = await askQuestion({ message: pnsRegistrationPrompt });
-    operationParams.runPNSRegistration = pnsRegistrationAnswer.trim() === '1';
-
-    if (operationParams.runPNSRegistration) {
-        const regPerKey = parseInt(await askQuestion({ message: `${Colors.FgBlue}[PNS] Enter number of domains to register per wallet: ${Colors.Reset}` }));
-        if (isNaN(regPerKey) || regPerKey < 1) { log('ERROR', 'Invalid number of registrations per wallet.', Colors.FgRed, '❌'); process.exit(1); }
-        operationParams.pnsParams.regPerKey = regPerKey;
     }
     
     log('SYSTEM', 'Configuration saved. These settings will be used for all subsequent daily runs.', Colors.FgGreen, '⚙️');
@@ -1836,7 +1416,7 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
         const results = await Promise.all(accountsToProcess.map(account => 
             processAccountOperation(account, operationParams, mintedGotchipusAddresses).catch(err => {
                 const address = new ethers.Wallet(account.pk).address;
-                log('SYSTEM', `Caught an unhandled error for ${address}: ${err.message}`, Colors.FgRed, '🚨');
+                log('SYSTEM', `Caught an unhandled error for account ${address}: ${err.message}`, Colors.FgRed, '🚨');
                 return { success: false, address: address, error: `Unhandled system error: ${err.message}` };
             })
         ));
