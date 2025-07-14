@@ -1223,7 +1223,7 @@ if (success) {
             if (runGrandlineMint) {
                 const alreadyMinted = await this.checkIfGrandlineAlreadyMinted();
                 if (alreadyMinted) {
-                    log('GRANDLINE-NFT', `[SKIP] Wallet has already minted Grandline NFT.`, Colors.FgYellow, '👍');
+                    log('GRANDLINE-NFT', `[SKIP] Wallet has already minted that NFT.`, Colors.FgYellow, '👍');
                 } else {
                     const success = await this.mintGrandlineNft();
                     if (success) {
