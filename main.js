@@ -1069,10 +1069,10 @@ log('SYSTEM', `Waiting ${randomDelay / 1000}s...`, Colors.FgDim, '⏳');
                     await new Promise(r => setTimeout(r, randomDelay));
                 }
             }
-            log('GRANDLINE-NFT', `Successfully minted Grandline NFT(s).`, Colors.FgGreen, '✅');
+            log('GRANDLINE-NFT', `Successfully minted NFT(s).`, Colors.FgGreen, '✅');
             return true;
         } catch (e) {
-            log('GRANDLINE-NFT', `[FAIL] Failed to mint Grandline NFT: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
+            log('GRANDLINE-NFT', `[FAIL] Failed to mint NFT: ${e.message.split('(')[0]}`, Colors.FgRed, '❌');
             return false;
         }
     }
