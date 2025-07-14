@@ -42,9 +42,9 @@ This bot is packed with features to automate a wide range of activities across t
 * **ZentraFi Protocol**:
     * Unwrap WPHRS back to native PHRS.
 * **Gotchipus NFT**:
-    * Mint the Gotchipus NFT. The bot will attempt to mint once per bot execution run (not daily). The bot keeps a record (`minted_gotchipus.txt`) to avoid minting on the same wallet twice.
+    * Mint the Gotchipus NFT. The bot keeps a record (`minted_gotchipus.txt`) to avoid minting on the same wallet twice.
 * **Grandline NFT Mint**:
-    * Mint NFTs from the Grandline protocol. The bot will attempt to mint once per bot execution run (not daily). Configurable via `configmint.js` to target different NFT contracts.
+    * Mint NFTs from the Grandline protocol. Configurable via `configmint.js` to target different NFT contracts.
 * **PNS Domain Registration**:
     * Register random `.phrs` domains on the Pharos Name Service. This includes the commit and register phases.
     * Automatically generates unique domain names using a large dictionary of adjectives and nouns from `randomNamesList.js`.
