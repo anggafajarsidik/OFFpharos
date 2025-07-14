@@ -48,7 +48,6 @@ This bot is packed with features to automate a wide range of activities across t
 * **PNS Domain Registration**:
     * Register random `.phrs` domains on the Pharos Name Service. This includes the commit and register phases.
     * Automatically generates unique domain names using a large dictionary of adjectives and nouns from `randomNamesList.js`.
-    * Configurable for number of registrations per wallet, and has an option to run daily or not
 ---
 
 ## 📋 Prerequisites
