@@ -1019,7 +1019,7 @@ class AccountProcessor {
     
                     const wphrsContractForWrap = new ethers.Contract(ZENTRAFI_CONFIGS.WPHRS_ADDRESS, DEX_CONFIGS.ZENITHSWAP.ERC20_ABI, this.wallet);
                     const wrapTxData = await wphrsContractForWrap.deposit.populateTransaction({ value: neededToWrap });
-                    await this.#executeTx(txData, `Wrap ${ethers.formatEther(needed)} PHRS for Zentra`);
+                    await this.#executeTx(wrapTxData, `Wrap ${ethers.formatEther(needed)} PHRS for Zentra`);
                 }
 
                 const wphrsContract = new ethers.Contract(ZENTRAFI_CONFIGS.WPHRS_ADDRESS, ZENTRAFI_CONFIGS.WPHRS_ABI, this.wallet);
@@ -1172,7 +1172,7 @@ class AccountProcessor {
         let successOverall = false;
 
         for (let i = 0; i < regPerKey; i++) {
-            const domainName = await this.#randomName();
+            const domainName = await this.#randomName(); // AWAIT the #randomName() call here
             log('PNS', `[Registration #${i + 1}/${regPerKey}] Starting PNS registration...`, Colors.Bright, '🌐');
             const MAX_RETRY = 5;
             let retry = 0;
@@ -1816,16 +1816,12 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
         operationParams.grandlineNFTParams = { ...operationParams.grandlineNFTParams, quantity, pricePerToken: price, claimCount };
     }
 
-    const pnsRegistrationPrompt = `${Colors.FgBlue}🌐 Perform PNS Domain Registration task?\n   1. Yes\n   2. No\n` +
+    const pnsRegistrationPrompt = `${Colors.FgBlue}🌐 Perform PNS Domain Registration task?\n   1. Yes\n   2. No\n   * If enabled, the bot will attempt to register domains once per wallet for every daily run.\n` +
                                 `Enter number: ${Colors.Reset}`;
     const pnsRegistrationAnswer = await askQuestion({ message: pnsRegistrationPrompt });
     operationParams.runPNSRegistration = pnsRegistrationAnswer.trim() === '1';
 
     if (operationParams.runPNSRegistration) {
-        const pnsDailyRunPrompt = `${Colors.FgBlue}[PNS] Do you want to run PNS registration daily?\n   1. Yes (will attempt to register domains every day)\n   2. No (will only run once per bot execution)\nEnter number: ${Colors.Reset}`;
-        const pnsDailyRunAnswer = await askQuestion({ message: pnsDailyRunPrompt });
-        operationParams.pnsParams.runDaily = pnsDailyRunAnswer.trim() === '1';
-
         const regPerKey = parseInt(await askQuestion({ message: `${Colors.FgBlue}[PNS] Enter number of domains to register per wallet: ${Colors.Reset}` }));
         if (isNaN(regPerKey) || regPerKey < 1) { log('ERROR', 'Invalid number of registrations per wallet.', Colors.FgRed, '❌'); process.exit(1); }
         operationParams.pnsParams.regPerKey = regPerKey;
@@ -1870,10 +1866,6 @@ async function processAccountOperation(account, operationParams, mintedGotchipus
         await checkAllAccountPoints(accountsToProcess, operationParams);
         
         log('SYSTEM', 'The point summary above is based on the latest API data. You can also verify your stats on the here: https://pharoshub.xyz/', Colors.Bright, '🎉');
-        
-        if (!operationParams.runPNSRegistration || !operationParams.pnsParams.runDaily) {
-            await runCountdown(DAILY_RUN_INTERVAL_HOURS);
-        } else {
-        }
+        await runCountdown(DAILY_RUN_INTERVAL_HOURS);
     }
 })();
