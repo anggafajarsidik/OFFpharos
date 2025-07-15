@@ -124,9 +124,6 @@ The script **adds** liquidity to **pre-existing pools**; it does not create them
   {
     "USDC_USDT": "0xWallet1_USDC_USDT_PoolAddress",
     "USDT_USDC": "0xWallet1_USDT_USDC_PoolAddress"
-  },
-  {
-    "USDC_USDT": "0xWallet2_USDC_USDT_PoolAddress"
   }
 ]
 ```
