@@ -23,7 +23,7 @@ This bot is packed with features to automate a wide range of activities across t
 #### General Pharos Tasks
 * **Daily Faucet Claim**: Never miss a daily token claim from the Pharos faucet.
 * **Daily Check-in**: Performs the daily check-in to accumulate points automatically.
-* **Auto-Send**: Distributes PHRS tokens from your accounts to a list of recipient wallets.
+* **Auto-Send**: Distributes PHRS tokens from your accounts to a list of recipient wallets on wallets.txt
 
 #### DEX Interactions
 * **Swapping**: Execute token swaps on both **FaroSwap** and **ZenithSwap**.
